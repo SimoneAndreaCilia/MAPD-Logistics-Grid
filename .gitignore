@@ -1,0 +1,8 @@
+# Simulation logs
+log_*.json
+*.log
+
+# Caches and Virtual Environments
+.venv/
+__pycache__/
+*.pyc
