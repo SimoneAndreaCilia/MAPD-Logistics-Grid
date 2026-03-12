@@ -12,6 +12,9 @@ class Agent:
         self.carrying_object = False
         self.is_active = True
         
+        self.role = None
+        self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING
+        
         # Local map: -1 indicates 'unknown'
         self.local_map = np.full((env_size, env_size), -1, dtype=int)
         # The starting cell is always a free corridor
@@ -20,10 +23,20 @@ class Agent:
         # Set of coordinates of objects seen but not yet collected
         self.known_objects = set()
         
+        # Track number of visits to each cell to avoid getting stuck
+        self.visited_cells = {self.pos: 1}
+        
+        # Track last known positions of other agents to coordinate map sharing
+        self.last_known_others = {}
+        
         self.strategy = None
 
     def set_strategy(self, strategy):
         self.strategy = strategy
+        if strategy.__class__.__name__ == "RandomTargetStrategy":
+            self.role = "Scout"
+        elif strategy.__class__.__name__ == "FrontierStrategy":
+            self.role = "Collector"
 
     def sense(self, env):
         if not self.is_active:
@@ -38,19 +51,22 @@ class Agent:
             if env.has_object((r, c)) and not self.carrying_object:
                 self.known_objects.add((r, c))
 
-    def communicate(self, other_agents):
-        if not self.is_active:
+    def sync_data(self, other):
+        """
+        Synchronizes map and object data with another agent efficiently using numpy and sets.
+        This is called by the Simulation manager when agents are within comm_range.
+        """
+        if not self.is_active or not other.is_active:
             return
             
-        for other in other_agents:
-            if other.id != self.id and other.is_active:
-                dist = manhattan_distance(self.pos, other.pos)
-                if dist <= self.comm_range:
-                    # Merge local maps (takes the max, so it replaces -1)
-                    self.local_map = np.maximum(self.local_map, other.local_map)
-                    
-                    # Share known objects
-                    self.known_objects.update(other.known_objects)
+        # Merge local maps (takes the max, so it replaces -1 with known cell types)
+        self.local_map = np.maximum(self.local_map, other.local_map)
+        
+        # Share known objects
+        self.known_objects.update(other.known_objects)
+        
+        # Update last known positions
+        self.last_known_others[other.id] = other.pos
 
     def decide_and_move(self, env):
         if not self.is_active or self.battery <= 0:
@@ -61,24 +77,28 @@ class Agent:
         
         if next_pos and next_pos != self.pos:
             self.pos = next_pos
-            self.battery -= 1
+            self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
+        else:
+            print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
             
-            #  Picks up the object if he steps on it and has nothing in his hand
-            if not self.carrying_object and env.has_object(self.pos):
-                env.remove_object(self.pos)
-                self.carrying_object = True
-                if self.pos in self.known_objects:
-                    self.known_objects.remove(self.pos)
-                    
-            # Drops off the object if it arrives at a warehouse
-            # Warehouses have values 2 (internal), 3 (entrance), 4 (exit)
-            cell_type = env.get_cell_type(self.pos)
-            if self.carrying_object and cell_type in [2, 3, 4]:
-                self.carrying_object = False
+        # Picks up the object if he steps on it and has nothing in his hand, and is not a Scout
+        if not self.carrying_object and env.has_object(self.pos) and self.role != "Scout":
+            env.remove_object(self.pos)
+            self.carrying_object = True
+            self.state = "DELIVERING"
+            if self.pos in self.known_objects:
+                self.known_objects.remove(self.pos)
                 
-            if self.battery <= 0:
-                self.is_active = False
-                
-            return True # Move made and costs 1 tick/energy
+        # Drops off the object if it arrives at a warehouse
+        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit)
+        cell_type = env.get_cell_type(self.pos)
+        if self.carrying_object and cell_type in [2, 3, 4]:
+            self.carrying_object = False
+            self.state = "EXPLORING"
             
-        return False # No move made (battery not spent)
+        self.battery -= 1
+            
+        if self.battery <= 0:
+            self.is_active = False
+            
+        return True # Move/action made and costs 1 tick/energy

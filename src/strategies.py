@@ -1,6 +1,7 @@
 import random
 from collections import deque
 import numpy as np
+import heapq
 
 def get_neighbors(pos, grid_shape):
     r, c = pos
@@ -9,116 +10,140 @@ def get_neighbors(pos, grid_shape):
         nr, nc = r + dr, c + dc
         if 0 <= nr < grid_shape[0] and 0 <= nc < grid_shape[1]:
             neighbors.append((nr, nc))
+    random.shuffle(neighbors)
     return neighbors
 
-def bfs_path(local_map, start, targets, traversable_vals):
+def a_star_path(local_map, start, targets, traversable_vals):
     """
-    Finds the shortest path (list of moves) to reach the nearest `target`.
+    Finds the shortest path to the nearest target using A* algorithm.
+    Allows traversing any value in `traversable_vals`.
     """
     if not targets:
         return None
         
-    queue = deque([start])
+    def h(pos):
+        return min(abs(pos[0]-t[0]) + abs(pos[1]-t[1]) for t in targets)
+
+    open_set = []
+    # (f_score, pos)
+    heapq.heappush(open_set, (h(start), start))
     came_from = {start: None}
+    g_score = {start: 0}
     
-    found_target = None
-    
-    while queue:
-        current = queue.popleft()
+    while open_set:
+        _, current = heapq.heappop(open_set)
         
         if current in targets:
-            found_target = current
-            break
+            path = []
+            while current != start:
+                path.append(current)
+                current = came_from[current]
+            path.reverse()
+            return path
             
         for n_pos in get_neighbors(current, local_map.shape):
-            if n_pos not in came_from:
-                cell_val = local_map[n_pos[0], n_pos[1]]
-                if cell_val in traversable_vals:
+            cell_val = local_map[n_pos[0], n_pos[1]]
+            if cell_val in traversable_vals:
+                tentative_g = g_score[current] + 1
+                if n_pos not in g_score or tentative_g < g_score[n_pos]:
                     came_from[n_pos] = current
-                    queue.append(n_pos)
+                    g_score[n_pos] = tentative_g
+                    f_score = tentative_g + h(n_pos)
+                    heapq.heappush(open_set, (f_score, n_pos))
                     
-    if not found_target:
-        return None
-        
-    # Reconstructs the path
-    path = []
-    curr = found_target
-    while curr != start:
-        path.append(curr)
-        curr = came_from[curr]
-    path.reverse()
-    return path
+    return None
 
 class BaseStrategy:
     def get_next_move(self, agent, env):
         raise NotImplementedError
-
-class RandomTargetStrategy(BaseStrategy):
-    """
-    It explores by moving randomly to adjacent free cells,
-    but is overridden by pathfinding if it sees an item or needs to return to the warehouse.
-    """
-    def get_next_move(self, agent, env):
-        # 1. If it carries a package, it looks for the nearest warehouse (types 2, 3, 4)
+        
+    def get_priority_move(self, agent):
+        """
+        Standard priority logic for all strategies:
+        1. If carrying an object, go to nearest warehouse.
+        2. If knows an object and is Collector, go to it (FETCHING).
+        """
+        # 1. Carrying an object? Return to warehouse
         if agent.carrying_object:
+            agent.state = "DELIVERING"
             warehouse_cells = set(zip(*np.where((agent.local_map == 2) | (agent.local_map == 3) | (agent.local_map == 4))))
             if warehouse_cells:
-                # It can walk anywhere as long as it's not a wall (1).
-                # The unknown (-1) does not count as safe walkable to avoid getting lost, 
-                # but for now we only allow on known areas: 0, 2, 3, 4
-                path = bfs_path(agent.local_map, agent.pos, warehouse_cells, [0, 2, 3, 4])
-                if path:
-                    return path[0] # Make the first step
-            # If it doesn't know any warehouse, it explores randomly
-            
-        # 2. If it doesn't carry anything and knows objects, go to the nearest one
-        elif agent.known_objects:
-            path = bfs_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1])
-            if path:
-                return path[0]
-                
-        # 3. Otherwise explore adjacent cells
-        neighbors = get_neighbors(agent.pos, agent.local_map.shape)
-        valid_moves = []
-        for n in neighbors:
-            # It also moves on the unknown or on empty spaces/entrance
-            if agent.local_map[n[0], n[1]] in [-1, 0, 3, 4]:
-                # Just a safety measure: avoid known walls.
-                valid_moves.append(n)
-                
-        if valid_moves:
-            return random.choice(valid_moves)
-        return agent.pos
-
-class FrontierStrategy(BaseStrategy):
-    """
-    Explores the 'Frontier' of the map, i.e., the known cells adjacent to unknown cells.
-    """
-    def get_next_move(self, agent, env):
-        # Same priorities for packages/warehouses
-        if agent.carrying_object:
-            warehouse_cells = set(zip(*np.where((agent.local_map == 2) | (agent.local_map == 3) | (agent.local_map == 4))))
-            if warehouse_cells:
-                path = bfs_path(agent.local_map, agent.pos, warehouse_cells, [0, 2, 3, 4])
+                # Include -1 (unknown) in traversable_vals for optimistic pathfinding
+                path = a_star_path(agent.local_map, agent.pos, warehouse_cells, [0, 2, 3, 4, -1])
                 if path: return path[0]
                 
-        elif agent.known_objects:
-            path = bfs_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1])
+        # 2. Knows objects and not a Scout? Go to the nearest one
+        elif agent.known_objects and agent.role != "Scout":
+            agent.state = "FETCHING"
+            path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1])
             if path: return path[0]
             
+        agent.state = "EXPLORING"
+        return None
+
+    def get_exploration_move(self, agent):
+        """
+        Fallback exploration move using the visited_cells heatmap to avoid traps.
+        """
+        neighbors = get_neighbors(agent.pos, agent.local_map.shape)
+        # Avoid walls (1), allow empty (0), entrances (3/4), and unknown (-1)
+        valid_moves = [n for n in neighbors if agent.local_map[n[0], n[1]] in [-1, 0, 3, 4]]
+        
+        if not valid_moves:
+            return agent.pos
+            
+        # Sort by visit count (least visited first)
+        valid_moves.sort(key=lambda m: agent.visited_cells.get(m, 0))
+        min_visits = agent.visited_cells.get(valid_moves[0], 0)
+        best_candidates = [m for m in valid_moves if agent.visited_cells.get(m, 0) == min_visits]
+        
+        return random.choice(best_candidates)
+
+    def get_coordination_move(self, agent):
+        """
+        If idle, try to move toward the last known position of another agent to share maps.
+        """
+        if agent.last_known_others:
+            # Pick a random last known position of another agent
+            target_agent_id = random.choice(list(agent.last_known_others.keys()))
+            target_pos = agent.last_known_others[target_agent_id]
+            
+            # Don't path if already close
+            if abs(agent.pos[0] - target_pos[0]) + abs(agent.pos[1] - target_pos[1]) > agent.comm_range:
+                path = a_star_path(agent.local_map, agent.pos, [target_pos], [0, 2, 3, 4, -1])
+                if path: return path[0]
+        return None
+
+class RandomTargetStrategy(BaseStrategy):
+    def get_next_move(self, agent, env):
+        # Priorities (Package/Objects)
+        move = self.get_priority_move(agent)
+        if move: return move
+        
+        # Coordination (Map Sharing)
+        if random.random() < 0.3: # 30% chance to seek others if idle
+            move = self.get_coordination_move(agent)
+            if move: return move
+            
+        # Fallback (Heatmap exploration)
+        return self.get_exploration_move(agent)
+
+class FrontierStrategy(BaseStrategy):
+    def get_next_move(self, agent, env):
+        # Priorities (Package/Objects)
+        move = self.get_priority_move(agent)
+        if move: return move
+        
         # Search for the nearest unknown cell (-1)
         unknown_cells = set(zip(*np.where(agent.local_map == -1)))
         if unknown_cells:
-            path = bfs_path(agent.local_map, agent.pos, unknown_cells, [0, 2, 3, 4, -1])
-            if path:
-                return path[0]
-                
-        # Fallback random
-        neighbors = get_neighbors(agent.pos, agent.local_map.shape)
-        valid_moves = []
-        for n in neighbors:
-            if agent.local_map[n[0], n[1]] in [-1, 0, 3, 4]:
-                valid_moves.append(n)
-        if valid_moves:
-            return random.choice(valid_moves)
-        return agent.pos
+            path = a_star_path(agent.local_map, agent.pos, unknown_cells, [0, 2, 3, 4, -1])
+            if path: return path[0]
+            
+        # Coordination (Map Sharing)
+        if random.random() < 0.2: 
+            move = self.get_coordination_move(agent)
+            if move: return move
+            
+        # Fallback (Heatmap exploration)
+        return self.get_exploration_move(agent)
