@@ -24,12 +24,13 @@ def analyze_log(log_path):
             pos = agent['pos']
             carrying = agent['carrying_object']
             
-            agent_paths[a_id].append(pos)
-            
-            if len(agent_paths[a_id]) > 1:
-                # Check if stuck (same pos)
-                if agent_paths[a_id][-1] == agent_paths[a_id][-2]:
-                    agent_stuck_count[a_id] += 1
+            if (tick_num - 1) % 5 == a_id:
+                agent_paths[a_id].append(pos)
+                
+                if len(agent_paths[a_id]) > 1:
+                    # Check if stuck (same pos as its last turn)
+                    if agent_paths[a_id][-1] == agent_paths[a_id][-2]:
+                        agent_stuck_count[a_id] += 1
             
             if carrying and a_id not in first_pickup:
                 first_pickup[a_id] = tick_num

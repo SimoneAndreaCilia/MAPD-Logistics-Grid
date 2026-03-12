@@ -23,6 +23,9 @@ class Agent:
         # Track number of visits to each cell to avoid getting stuck
         self.visited_cells = {self.pos: 1}
         
+        # Track last known positions of other agents to coordinate map sharing
+        self.last_known_others = {}
+        
         self.strategy = None
 
     def set_strategy(self, strategy):
@@ -54,6 +57,10 @@ class Agent:
                     
                     # Share known objects
                     self.known_objects.update(other.known_objects)
+                    
+                # Update last known positions of all active agents
+                if other.id != self.id and other.is_active:
+                    self.last_known_others[other.id] = other.pos
 
     def decide_and_move(self, env):
         if not self.is_active or self.battery <= 0:
@@ -65,24 +72,25 @@ class Agent:
         if next_pos and next_pos != self.pos:
             self.pos = next_pos
             self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
-            self.battery -= 1
+        else:
+            print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
             
-            #  Picks up the object if he steps on it and has nothing in his hand
-            if not self.carrying_object and env.has_object(self.pos):
-                env.remove_object(self.pos)
-                self.carrying_object = True
-                if self.pos in self.known_objects:
-                    self.known_objects.remove(self.pos)
-                    
-            # Drops off the object if it arrives at a warehouse
-            # Warehouses have values 2 (internal), 3 (entrance), 4 (exit)
-            cell_type = env.get_cell_type(self.pos)
-            if self.carrying_object and cell_type in [2, 3, 4]:
-                self.carrying_object = False
+        # Picks up the object if he steps on it and has nothing in his hand
+        if not self.carrying_object and env.has_object(self.pos):
+            env.remove_object(self.pos)
+            self.carrying_object = True
+            if self.pos in self.known_objects:
+                self.known_objects.remove(self.pos)
                 
-            if self.battery <= 0:
-                self.is_active = False
-                
-            return True # Move made and costs 1 tick/energy
+        # Drops off the object if it arrives at a warehouse
+        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit)
+        cell_type = env.get_cell_type(self.pos)
+        if self.carrying_object and cell_type in [2, 3, 4]:
+            self.carrying_object = False
             
-        return False # No move made (battery not spent)
+        self.battery -= 1
+            
+        if self.battery <= 0:
+            self.is_active = False
+            
+        return True # Move/action made and costs 1 tick/energy
