@@ -23,15 +23,14 @@ class Simulation:
         if self.is_done:
             return
             
+        self.handle_communications()
+        
         for agent in self.agents:
             if not agent.is_active:
                 continue
                 
             # Perception
             agent.sense(self.env)
-            
-            # Communication with those in range
-            agent.communicate(self.agents)
             
             # Decision and Movement
             moved = agent.decide_and_move(self.env)
@@ -64,6 +63,27 @@ class Simulation:
                 "active": a.is_active
             })
         self.logger.add_tick_state(self.current_tick, agents_data, self.score, objects_left)
+        
+    def handle_communications(self):
+        """
+        Check all unique pairs of active agents. 
+        If they are within communication range, trigger map/data merging.
+        """
+        for i in range(len(self.agents)):
+            a1 = self.agents[i]
+            if not a1.is_active:
+                continue
+            for j in range(i + 1, len(self.agents)):
+                a2 = self.agents[j]
+                if not a2.is_active:
+                    continue
+                    
+                # Calculate Manhattan Distance
+                dist = abs(a1.pos[0] - a2.pos[0]) + abs(a1.pos[1] - a2.pos[1])
+                # If they are within range of either agent
+                if dist <= a1.comm_range or dist <= a2.comm_range:
+                    a1.sync_data(a2)
+                    a2.sync_data(a1)
         
     def run(self, log_path="log.json"):
         while not self.is_done:

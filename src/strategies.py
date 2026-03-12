@@ -61,21 +61,24 @@ class BaseStrategy:
         """
         Standard priority logic for all strategies:
         1. If carrying an object, go to nearest warehouse.
-        2. If knows an object, go to it.
+        2. If knows an object and is Collector, go to it (FETCHING).
         """
         # 1. Carrying an object? Return to warehouse
         if agent.carrying_object:
+            agent.state = "DELIVERING"
             warehouse_cells = set(zip(*np.where((agent.local_map == 2) | (agent.local_map == 3) | (agent.local_map == 4))))
             if warehouse_cells:
                 # Include -1 (unknown) in traversable_vals for optimistic pathfinding
                 path = a_star_path(agent.local_map, agent.pos, warehouse_cells, [0, 2, 3, 4, -1])
                 if path: return path[0]
                 
-        # 2. Knows objects? Go to the nearest one
-        elif agent.known_objects:
+        # 2. Knows objects and not a Scout? Go to the nearest one
+        elif agent.known_objects and agent.role != "Scout":
+            agent.state = "FETCHING"
             path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1])
             if path: return path[0]
             
+        agent.state = "EXPLORING"
         return None
 
     def get_exploration_move(self, agent):
