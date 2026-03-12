@@ -20,6 +20,9 @@ class Agent:
         # Set of coordinates of objects seen but not yet collected
         self.known_objects = set()
         
+        # Track number of visits to each cell to avoid getting stuck
+        self.visited_cells = {self.pos: 1}
+        
         self.strategy = None
 
     def set_strategy(self, strategy):
@@ -61,6 +64,7 @@ class Agent:
         
         if next_pos and next_pos != self.pos:
             self.pos = next_pos
+            self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
             self.battery -= 1
             
             #  Picks up the object if he steps on it and has nothing in his hand
