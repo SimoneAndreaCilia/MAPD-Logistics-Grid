@@ -101,6 +101,10 @@ class Simulation:
                     a2.is_connected = True
         
     def run(self, log_path="log.json"):
+        # Log initial state (Tick 0)
+        objects_left = len(self.env.get_ground_truth_objects())
+        self.log_state(objects_left)
+        
         while not self.is_done:
             self.step()
             

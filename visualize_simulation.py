@@ -2,6 +2,7 @@ import json
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 from matplotlib.widgets import Slider, Button
+import matplotlib.patches as patches
 import numpy as np
 import os
 
@@ -39,9 +40,26 @@ class SimulationVisualizer:
         # Agents representation
         self.agent_scatters = []
         self.agent_colors = ['#1f77b4', '#ff7f0e', '#2ca02c', '#d62728', '#9467bd']
+        self.max_batteries = [agent['battery'] for agent in self.log_data[0]['agents']]
+        self.health_bgs = []
+        self.health_fgs = []
+        
         for i in range(5):
             sc = self.ax.scatter([], [], c=self.agent_colors[i], s=200, edgecolors='black', label=f'Agent {i}', zorder=5)
             self.agent_scatters.append(sc)
+            
+            # Health bars
+            bg = patches.Rectangle((0, 0), 0.8, 0.15, facecolor='gray', zorder=6)
+            fg = patches.Rectangle((0, 0), 0.8, 0.15, facecolor='limegreen', zorder=7)
+            self.ax.add_patch(bg)
+            self.ax.add_patch(fg)
+            self.health_bgs.append(bg)
+            self.health_fgs.append(fg)
+
+        # Field of View (FOV)
+        self.selected_agent_idx = None
+        self.fov_patch = patches.Polygon(np.zeros((4,2)), closed=True, facecolor='white', alpha=0.0, edgecolor='black', linestyle='--', linewidth=1.5, zorder=3)
+        self.ax.add_patch(self.fov_patch)
 
         # Objects representation
         self.object_scatter = self.ax.scatter([], [], c='gold', s=100, marker='D', edgecolors='black', label='Object', zorder=4)
@@ -50,6 +68,7 @@ class SimulationVisualizer:
         self.tick_text = self.fig.text(0.05, 0.85, '', fontweight='bold', fontsize=14)
         self.score_text = self.fig.text(0.05, 0.78, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.5))
         self.objs_text = self.fig.text(0.05, 0.73, '', fontsize=11, bbox=dict(facecolor='gold', alpha=0.3))
+        self.agent_info_text = self.fig.text(0.05, 0.65, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
         
         # Slider & Buttons
         ax_slider = plt.axes([0.15, 0.08, 0.7, 0.03])
@@ -68,8 +87,9 @@ class SimulationVisualizer:
         self.btn_next = Button(ax_next, '>>')
         self.btn_next.on_clicked(self.next_frame)
         
-        # Keyboard events
+        # Keyboard & Mouse events
         self.fig.canvas.mpl_connect('key_press_event', self.on_key)
+        self.fig.canvas.mpl_connect('button_press_event', self.on_click)
         
         # Precompute object lifecycle for fast scrubbing
         self.precompute_object_states()
@@ -99,13 +119,61 @@ class SimulationVisualizer:
         # Agents update
         for i, agent in enumerate(agents):
             pos = agent['pos']
-            self.agent_scatters[i].set_offsets([[pos[1], pos[0]]])
+            x, y = pos[1], pos[0]
+            self.agent_scatters[i].set_offsets([[x, y]])
+            
             if agent['carrying_object']:
                 self.agent_scatters[i].set_edgecolors('gold')
                 self.agent_scatters[i].set_linewidths(3)
             else:
                 self.agent_scatters[i].set_edgecolors('black')
                 self.agent_scatters[i].set_linewidths(1)
+                
+            # Health bar update
+            # Now displaying raw battery values since agents have 100 or 150 battery
+            pct = agent['battery'] / self.max_batteries[i]
+            pct = max(0.0, min(1.0, pct))
+            
+            hx = x - 0.4
+            hy = y - 0.45
+            self.health_bgs[i].set_xy((hx, hy))
+            self.health_fgs[i].set_xy((hx, hy))
+            self.health_fgs[i].set_width(0.8 * pct)
+            
+            if pct > 0.5:
+                self.health_fgs[i].set_facecolor('limegreen')
+            elif pct > 0.2:
+                self.health_fgs[i].set_facecolor('gold')
+            else:
+                self.health_fgs[i].set_facecolor('red')
+
+        # FOV update
+        if self.selected_agent_idx is not None:
+            agent = agents[self.selected_agent_idx]
+            x, y = agent['pos'][1], agent['pos'][0]
+            
+            # Manhattan distance 3 diamond: covers cells at distance <= 3
+            # We use 3.5 to encompass the full grid cells
+            dx = 3.5
+            diamond = np.array([
+                [x, y - dx],
+                [x + dx, y],
+                [x, y + dx],
+                [x - dx, y]
+            ])
+            self.fov_patch.set_xy(diamond)
+            self.fov_patch.set_alpha(0.2)
+            self.fov_patch.set_facecolor(self.agent_colors[self.selected_agent_idx])
+            
+            role = "Scout" if self.selected_agent_idx >= 3 else "Collector"
+            
+            info_str = f"Selected: Agent {self.selected_agent_idx}\nRole: {role}\nBattery: {agent['battery']}/{self.max_batteries[self.selected_agent_idx]}\nPos: ({agent['pos'][1]}, {agent['pos'][0]})"
+            self.agent_info_text.set_text(info_str)
+            self.agent_info_text.set_bbox(dict(facecolor=self.agent_colors[self.selected_agent_idx], alpha=0.3))
+        else:
+            self.fov_patch.set_alpha(0.0)
+            self.agent_info_text.set_text("")
+            self.agent_info_text.set_bbox(dict(facecolor='white', alpha=0.0))
 
         # Objects update
         objs = self.object_states[self.current_frame]
@@ -144,6 +212,35 @@ class SimulationVisualizer:
         elif event.key == 'left':
             self.is_playing = False
             self.prev_frame()
+        elif event.key in ['0', '1', '2', '3', '4']:
+            self.selected_agent_idx = int(event.key)
+            self.update_plot(self.current_frame)
+        elif event.key == 'escape':
+            self.selected_agent_idx = None
+            self.update_plot(self.current_frame)
+
+    def on_click(self, event):
+        if event.inaxes != self.ax:
+            return
+            
+        # Check if clicked near an agent
+        clicked_agent = None
+        min_dist = float('inf')
+        tick_info = self.log_data[self.current_frame]
+        
+        for i, agent in enumerate(tick_info['agents']):
+            x, y = agent['pos'][1], agent['pos'][0]
+            dist = (event.xdata - x)**2 + (event.ydata - y)**2
+            if dist < 0.6 and dist < min_dist:
+                min_dist = dist
+                clicked_agent = i
+                
+        if clicked_agent is not None:
+            if self.selected_agent_idx == clicked_agent:
+                self.selected_agent_idx = None # Toggle off
+            else:
+                self.selected_agent_idx = clicked_agent
+            self.update_plot(self.current_frame)
 
     def run_animation(self):
         def animate(i):

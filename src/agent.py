@@ -2,10 +2,10 @@ import numpy as np
 from .utils import get_visible_cells, manhattan_distance
 
 class Agent:
-    def __init__(self, agent_id, env_size, vision_range=2, comm_range=2):
+    def __init__(self, agent_id, env_size, vision_range=2, comm_range=2, battery=100):
         self.id = agent_id
         self.pos = (0, 0)
-        self.battery = 500
+        self.battery = battery
         self.vision_range = vision_range
         self.comm_range = comm_range
         
