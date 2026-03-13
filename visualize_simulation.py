@@ -72,6 +72,10 @@ class SimulationVisualizer:
         
         # Precompute object lifecycle for fast scrubbing
         self.precompute_object_states()
+        
+        # Initialize legend with explicit handles to avoid empty artist warnings
+        self.ax.legend(handles=self.agent_scatters + [self.object_scatter], 
+                       loc='upper right', bbox_to_anchor=(1.1, 1), fontsize='small')
 
     def precompute_object_states(self):
         # We need to know which objects are where at each tick
@@ -150,7 +154,6 @@ class SimulationVisualizer:
             return []
 
         ani = animation.FuncAnimation(self.fig, animate, interval=50, blit=False, cache_frame_data=False)
-        plt.legend(loc='upper right', bbox_to_anchor=(1.1, 1), fontsize='small')
         plt.show()
 
 if __name__ == "__main__":
