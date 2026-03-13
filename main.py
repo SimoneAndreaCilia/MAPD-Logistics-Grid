@@ -41,7 +41,7 @@ def main():
         agents.append(agent)
         
     print(">>> Simulation Start...")
-    sim = Simulation(env, agents, max_ticks=500)
+    sim = Simulation(env, agents, max_ticks=750)
     sim.run(log_path=os.path.join(base_path, "log_A.json"))
 
 if __name__ == "__main__":

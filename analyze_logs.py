@@ -12,8 +12,8 @@ def analyze_log(log_path):
     agent_paths = {i: [] for i in range(5)}
     agent_stuck_count = {i: 0 for i in range(5)}
     
-    first_pickup = {}
-    delivery_time = {}
+    current_pickup_tick = {i: None for i in range(5)}
+    deliveries_count = {i: 0 for i in range(5)}
     
     for tick in ticks:
         tick_num = tick['tick']
@@ -32,20 +32,22 @@ def analyze_log(log_path):
                     if agent_paths[a_id][-1] == agent_paths[a_id][-2]:
                         agent_stuck_count[a_id] += 1
             
-            if carrying and a_id not in first_pickup:
-                first_pickup[a_id] = tick_num
+            if carrying and current_pickup_tick[a_id] is None:
+                current_pickup_tick[a_id] = tick_num
                 print(f"Tick {tick_num}: Agent {a_id} picked up an object at {pos}.")
                 
-            if not carrying and a_id in first_pickup and a_id not in delivery_time:
+            if not carrying and current_pickup_tick[a_id] is not None:
                 # Delivered!
-                delivery_time[a_id] = tick_num
-                print(f"Tick {tick_num}: Agent {a_id} delivered an object at {pos}. Took {tick_num - first_pickup[a_id]} ticks.")
+                took_ticks = tick_num - current_pickup_tick[a_id]
+                deliveries_count[a_id] += 1
+                print(f"Tick {tick_num}: Agent {a_id} delivered object #{deliveries_count[a_id]} at {pos}. Took {took_ticks} ticks.")
+                current_pickup_tick[a_id] = None # Reset for the next object
 
     print("\n--- Summary ---")
     for a_id in range(5):
         path = agent_paths[a_id]
         unique_cells = len(set(tuple(p) for p in path))
-        print(f"Agent {a_id}: Unique cells visited: {unique_cells}, Stuck ticks: {agent_stuck_count[a_id]}")
+        print(f"Agent {a_id}: Unique cells visited: {unique_cells}, Stuck ticks: {agent_stuck_count[a_id]}, Objects delivered: {deliveries_count[a_id]}")
 
 if __name__ == '__main__':
     log_path = r'c:\Develop_Projects\Artificial_Swarm_Intelligence_Project\MAPD_Logistics\log_A.json'
