@@ -92,6 +92,18 @@ class BaseStrategy:
             agent.state = "FETCHING"
             path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
             if path: return path[0]
+
+        # 2.5. Scout knows objects? RENDEZVOUS with nearest Collector to share data
+        elif agent.known_objects and agent.role == "Scout":
+            # Filter last_known_others for Collectors
+            collectors = [info for info in agent.last_known_others.values() if info.get("role") == "Collector"]
+            if collectors:
+                agent.state = "RENDEZVOUS"
+                collector_positions = [c["pos"] for c in collectors]
+                # Find nearest collector position to the agent
+                nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
+                path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+                if path: return path[0]
             
         agent.state = "EXPLORING"
         return None
@@ -119,9 +131,10 @@ class BaseStrategy:
         If idle, try to move toward the last known position of another agent to share maps.
         """
         if agent.last_known_others:
-            # Pick a random last known position of another agent
+            # Pick a random last known metadata of another agent
             target_agent_id = random.choice(list(agent.last_known_others.keys()))
-            target_pos = agent.last_known_others[target_agent_id]
+            target_info = agent.last_known_others[target_agent_id]
+            target_pos = target_info["pos"]
             
             # Don't path if already close
             if abs(agent.pos[0] - target_pos[0]) + abs(agent.pos[1] - target_pos[1]) > agent.comm_range:
