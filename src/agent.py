@@ -11,6 +11,8 @@ class Agent:
         
         self.carrying_object = False
         self.is_active = True
+        self.is_connected = False
+        self.nearby_agents = [] # List of tuples containing perceived positions of other agents
         
         self.role = None
         self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING
@@ -75,10 +77,15 @@ class Agent:
             
         next_pos = self.strategy.get_next_move(self, env)
         
+        # Collision avoidance: do not move if the target cell is occupied by a known nearby agent
+        if next_pos and next_pos in self.nearby_agents:
+            # print(f"Agent {self.id} avoiding collision at {next_pos}.")
+            next_pos = self.pos # Stay in place this tick
+        
         if next_pos and next_pos != self.pos:
             self.pos = next_pos
             self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
-        else:
+        elif next_pos != self.pos: # Only print stuck message if it actually tried to move but couldn't path
             print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
             
         # Picks up the object if he steps on it and has nothing in his hand, and is not a Scout
