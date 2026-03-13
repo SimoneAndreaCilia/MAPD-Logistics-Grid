@@ -25,8 +25,8 @@ class SimulationVisualizer:
         
         # Setup Figure
         self.fig, self.ax = plt.subplots(figsize=(10, 11))
-        # Adjust for buttons and slider at the bottom
-        plt.subplots_adjust(bottom=0.2)
+        # Adjust for buttons and slider at the bottom, and HUD on the left
+        plt.subplots_adjust(bottom=0.2, top=0.9, left=0.2, right=0.95)
         
         # Setup Colors
         self.cmap = plt.cm.colors.ListedColormap(['white', 'gray', 'royalblue', 'limegreen', 'tomato', 'gold'])
@@ -46,9 +46,10 @@ class SimulationVisualizer:
         # Objects representation
         self.object_scatter = self.ax.scatter([], [], c='gold', s=100, marker='D', edgecolors='black', label='Object', zorder=4)
         
-        # HUD
-        self.tick_text = self.ax.text(0.02, 0.98, '', transform=self.ax.transAxes, verticalalignment='top', fontweight='bold', bbox=dict(facecolor='white', alpha=0.5))
-        self.score_text = self.ax.text(0.02, 0.94, '', transform=self.ax.transAxes, verticalalignment='top', bbox=dict(facecolor='white', alpha=0.5))
+        # HUD - Positioned to the left of the grid in the margin
+        self.tick_text = self.fig.text(0.05, 0.85, '', fontweight='bold', fontsize=14)
+        self.score_text = self.fig.text(0.05, 0.78, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.5))
+        self.objs_text = self.fig.text(0.05, 0.73, '', fontsize=11, bbox=dict(facecolor='gold', alpha=0.3))
         
         # Slider & Buttons
         ax_slider = plt.axes([0.15, 0.08, 0.7, 0.03])
@@ -114,7 +115,8 @@ class SimulationVisualizer:
             self.object_scatter.set_offsets(np.empty((0, 2)))
 
         self.tick_text.set_text(f"Tick: {tick_info['tick']}")
-        self.score_text.set_text(f"Score: {tick_info.get('score', 0)} | Objects Left: {tick_info['objects_left']}")
+        self.score_text.set_text(f"Score: {tick_info.get('score', 0)}")
+        self.objs_text.set_text(f"Objects Left: {tick_info['objects_left']}")
         self.fig.canvas.draw_idle()
 
     def on_slider_change(self, val):
@@ -154,6 +156,13 @@ class SimulationVisualizer:
             return []
 
         ani = animation.FuncAnimation(self.fig, animate, interval=50, blit=False, cache_frame_data=False)
+        
+        # Grid lines customization
+        self.ax.set_xticks(np.arange(-0.5, self.grid_size, 1), minor=True)
+        self.ax.set_yticks(np.arange(-0.5, self.grid_size, 1), minor=True)
+        self.ax.grid(which='minor', color='black', linestyle='-', linewidth=0.2)
+        self.ax.tick_params(which='minor', bottom=False, left=False) # Hide minor ticks but keep grid
+        
         plt.show()
 
 if __name__ == "__main__":
