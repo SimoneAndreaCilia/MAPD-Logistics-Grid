@@ -15,7 +15,7 @@ class Agent:
         self.nearby_agents = [] # List of tuples containing perceived positions of other agents
         
         self.role = None
-        self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING
+        self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING, EXITING
         
         # Local map: -1 indicates 'unknown'
         self.local_map = np.full((env_size, env_size), -1, dtype=int)
@@ -96,12 +96,16 @@ class Agent:
             if self.pos in self.known_objects:
                 self.known_objects.remove(self.pos)
                 
-        # Drops off the object if it arrives at a warehouse
-        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit)
+        # Drops off the object if it arrives at a warehouse entrance or internal cell
+        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit). Drop at 2 or 3.
         cell_type = env.get_cell_type(self.pos)
-        if self.carrying_object and cell_type in [2, 3, 4]:
+        if self.carrying_object and cell_type in [2, 3]:
             self.carrying_object = False
-            self.state = "EXPLORING"
+            self.state = "EXITING" # Immediately switch state to exit the warehouse
+            
+        # Resets state to EXPLORING if exiting the warehouse (stepped on 4 then out, or just wandering)
+        if not self.carrying_object and self.state == "EXITING" and cell_type == 4:
+            self.state = "EXPLORING" # Once on the exit, the next step will be out, so we can explore.
             
         self.battery -= 1
             

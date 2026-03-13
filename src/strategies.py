@@ -63,14 +63,23 @@ class BaseStrategy:
         1. If carrying an object, go to nearest warehouse.
         2. If knows an object and is Collector, go to it (FETCHING).
         """
-        # 1. Carrying an object? Return to warehouse
+        # 1. Carrying an object? Return to warehouse ENTRANCE (3)
         if agent.carrying_object:
             agent.state = "DELIVERING"
-            warehouse_cells = set(zip(*np.where((agent.local_map == 2) | (agent.local_map == 3) | (agent.local_map == 4))))
-            if warehouse_cells:
-                # Include -1 (unknown) in traversable_vals for optimistic pathfinding
-                path = a_star_path(agent.local_map, agent.pos, warehouse_cells, [0, 2, 3, 4, -1])
+            # Target ONLY entrance cells (3)
+            warehouse_entrances = set(zip(*np.where(agent.local_map == 3)))
+            if warehouse_entrances:
+                # Include -1 (unknown) and other warehouse cells in traversable_vals for pathfinding
+                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [0, 2, 3, 4, -1])
                 if path: return path[0]
+                
+        # 1.5. Inside a warehouse without an object? Head to EXIT (4)
+        elif not agent.carrying_object and agent.local_map[agent.pos[0], agent.pos[1]] in [2, 3]:
+             agent.state = "EXITING"
+             warehouse_exits = set(zip(*np.where(agent.local_map == 4)))
+             if warehouse_exits:
+                 path = a_star_path(agent.local_map, agent.pos, warehouse_exits, [0, 2, 3, 4, -1])
+                 if path: return path[0]
                 
         # 2. Knows objects and not a Scout? Go to the nearest one
         elif agent.known_objects and agent.role != "Scout":
