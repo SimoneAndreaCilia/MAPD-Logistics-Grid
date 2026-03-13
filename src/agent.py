@@ -11,9 +11,11 @@ class Agent:
         
         self.carrying_object = False
         self.is_active = True
+        self.is_connected = False
+        self.nearby_agents = [] # List of tuples containing perceived positions of other agents
         
         self.role = None
-        self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING
+        self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING, EXITING
         
         # Local map: -1 indicates 'unknown'
         self.local_map = np.full((env_size, env_size), -1, dtype=int)
@@ -75,10 +77,15 @@ class Agent:
             
         next_pos = self.strategy.get_next_move(self, env)
         
+        # Collision avoidance: do not move if the target cell is occupied by a known nearby agent
+        if next_pos and next_pos in self.nearby_agents:
+            # print(f"Agent {self.id} avoiding collision at {next_pos}.")
+            next_pos = self.pos # Stay in place this tick
+        
         if next_pos and next_pos != self.pos:
             self.pos = next_pos
             self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
-        else:
+        elif next_pos != self.pos: # Only print stuck message if it actually tried to move but couldn't path
             print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
             
         # Picks up the object if he steps on it and has nothing in his hand, and is not a Scout
@@ -89,12 +96,16 @@ class Agent:
             if self.pos in self.known_objects:
                 self.known_objects.remove(self.pos)
                 
-        # Drops off the object if it arrives at a warehouse
-        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit)
+        # Drops off the object if it arrives at a warehouse entrance or internal cell
+        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit). Drop at 2 or 3.
         cell_type = env.get_cell_type(self.pos)
-        if self.carrying_object and cell_type in [2, 3, 4]:
+        if self.carrying_object and cell_type in [2, 3]:
             self.carrying_object = False
-            self.state = "EXPLORING"
+            self.state = "EXITING" # Immediately switch state to exit the warehouse
+            
+        # Resets state to EXPLORING if exiting the warehouse (stepped on 4 then out, or just wandering)
+        if not self.carrying_object and self.state == "EXITING" and cell_type == 4:
+            self.state = "EXPLORING" # Once on the exit, the next step will be out, so we can explore.
             
         self.battery -= 1
             

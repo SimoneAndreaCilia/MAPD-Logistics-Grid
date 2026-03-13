@@ -1,4 +1,4 @@
-from .utils import SimulationLogger
+from .utils import SimulationLogger, manhattan_distance, has_line_of_sight
 
 class Simulation:
     def __init__(self, env, agents, max_ticks=750):
@@ -31,6 +31,14 @@ class Simulation:
                 
             # Perception
             agent.sense(self.env)
+            
+            # Populate nearby agents for collision avoidance
+            agent.nearby_agents = []
+            for other in self.agents:
+                if other.id != agent.id and other.is_active:
+                    if manhattan_distance(agent.pos, other.pos) <= agent.vision_range:
+                        if has_line_of_sight(self.env, agent.pos, other.pos):
+                            agent.nearby_agents.append(other.pos)
             
             # Decision and Movement
             moved = agent.decide_and_move(self.env)
@@ -69,6 +77,11 @@ class Simulation:
         Check all unique pairs of active agents. 
         If they are within communication range, trigger map/data merging.
         """
+        # Reset connection status at the start of the tick
+        for agent in self.agents:
+            if agent.is_active:
+                agent.is_connected = False
+                
         for i in range(len(self.agents)):
             a1 = self.agents[i]
             if not a1.is_active:
@@ -84,6 +97,8 @@ class Simulation:
                 if dist <= a1.comm_range or dist <= a2.comm_range:
                     a1.sync_data(a2)
                     a2.sync_data(a1)
+                    a1.is_connected = True
+                    a2.is_connected = True
         
     def run(self, log_path="log.json"):
         while not self.is_done:
