@@ -15,7 +15,7 @@ class Agent:
         self.nearby_agents = [] # List of tuples containing perceived positions of other agents
         
         self.role = None
-        self.state = "EXPLORING" # Used by Collector: EXPLORING, FETCHING, DELIVERING, EXITING
+        self.state = "EXPLORING" # Used by agents: EXPLORING, FETCHING, DELIVERING, EXITING, RENDEZVOUS
         
         # Local map: -1 indicates 'unknown'
         self.local_map = np.full((env_size, env_size), -1, dtype=int)
@@ -65,10 +65,19 @@ class Agent:
         self.local_map = np.maximum(self.local_map, other.local_map)
         
         # Share known objects
+        other.known_objects.update(self.known_objects)
         self.known_objects.update(other.known_objects)
         
-        # Update last known positions
-        self.last_known_others[other.id] = other.pos
+        # If I am a Scout and I just shared my data with a Collector, I can clear my known_objects
+        # so I stop the Rendezvous and go back to exploring.
+        if self.role == "Scout" and other.role == "Collector":
+            self.known_objects.clear()
+        # Vice versa for the other agent if roles are reversed
+        if other.role == "Scout" and self.role == "Collector":
+            other.known_objects.clear()
+            
+        # Update last known metadata (position and role)
+        self.last_known_others[other.id] = {"pos": other.pos, "role": other.role}
 
     def decide_and_move(self, env):
         if not self.is_active or self.battery <= 0:
