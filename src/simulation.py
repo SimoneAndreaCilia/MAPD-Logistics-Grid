@@ -32,13 +32,15 @@ class Simulation:
             # Perception
             agent.sense(self.env)
             
-            # Populate nearby agents for collision avoidance
+            # Populate nearby agents for soft repulsion/awareness
             agent.nearby_agents = []
             for other in self.agents:
                 if other.id != agent.id and other.is_active:
                     if manhattan_distance(agent.pos, other.pos) <= agent.vision_range:
                         if has_line_of_sight(self.env, agent.pos, other.pos):
                             agent.nearby_agents.append(other.pos)
+
+
             
             # Decision and Movement
             moved = agent.decide_and_move(self.env)

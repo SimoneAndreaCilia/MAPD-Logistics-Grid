@@ -44,10 +44,15 @@ def analyze_log(log_path):
                 current_pickup_tick[a_id] = None # Reset for the next object
 
     print("\n--- Summary ---")
+    all_visited = set()
     for a_id in range(5):
         path = agent_paths[a_id]
-        unique_cells = len(set(tuple(p) for p in path))
+        agent_visited = set(tuple(p) for p in path)
+        all_visited.update(agent_visited)
+        unique_cells = len(agent_visited)
         print(f"Agent {a_id}: Unique cells visited: {unique_cells}, Stuck ticks: {agent_stuck_count[a_id]}, Objects delivered: {deliveries_count[a_id]}")
+    
+    print(f"\nSwarm Cumulative Coverage: {len(all_visited)} / 357 ({len(all_visited)/357*100:.1f}%)")
 
 if __name__ == '__main__':
     log_path = r'c:\Develop_Projects\Artificial_Swarm_Intelligence_Project\MAPD_Logistics\log_A.json'

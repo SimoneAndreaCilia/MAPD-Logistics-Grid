@@ -27,6 +27,8 @@ class Agent:
         
         # Track number of visits to each cell to avoid getting stuck
         self.visited_cells = {self.pos: 1}
+        self.last_pos = None
+        self.current_target = None # Persistent goal for multiple ticks
         
         # Track last known positions of other agents to coordinate map sharing
         self.last_known_others = {}
@@ -86,16 +88,20 @@ class Agent:
             
         next_pos = self.strategy.get_next_move(self, env)
         
-        # Collision avoidance: do not move if the target cell is occupied by a known nearby agent
-        if next_pos and next_pos in self.nearby_agents:
-            # print(f"Agent {self.id} avoiding collision at {next_pos}.")
-            next_pos = self.pos # Stay in place this tick
+        # Collision avoidance is disabled to allow overlap
+
         
+        # Target management: clear target if reached
+        if self.current_target == self.pos:
+            self.current_target = None
+
         if next_pos and next_pos != self.pos:
+            self.last_pos = self.pos
             self.pos = next_pos
             self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
         elif next_pos != self.pos: # Only print stuck message if it actually tried to move but couldn't path
             print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
+            self.current_target = None # Clear failed target
             
         # Picks up the object if he steps on it and has nothing in his hand, and is not a Scout
         if not self.carrying_object and env.has_object(self.pos) and self.role != "Scout":
@@ -106,15 +112,17 @@ class Agent:
                 self.known_objects.remove(self.pos)
                 
         # Drops off the object if it arrives at a warehouse entrance or internal cell
-        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit). Drop at 2 or 3.
+        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit).
         cell_type = env.get_cell_type(self.pos)
         if self.carrying_object and cell_type in [2, 3]:
             self.carrying_object = False
             self.state = "EXITING" # Immediately switch state to exit the warehouse
             
-        # Resets state to EXPLORING if exiting the warehouse (stepped on 4 then out, or just wandering)
-        if not self.carrying_object and self.state == "EXITING" and cell_type == 4:
-            self.state = "EXPLORING" # Once on the exit, the next step will be out, so we can explore.
+        # Resets state to EXPLORING only when back in a corridor (type 0)
+        # This ensures the agent follows the EXITING logic through the red cell (4)
+        if not self.carrying_object and self.state in ["EXITING", "DELIVERING", "FETCHING"] and cell_type == 0:
+            self.state = "EXPLORING" 
+            self.current_target = None # Forces re-selection of exploration target
             
         self.battery -= 1
             
