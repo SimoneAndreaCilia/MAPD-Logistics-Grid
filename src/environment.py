@@ -40,7 +40,7 @@ class Environment:
         return self.grid[r][c]
 
     def is_obstacle(self, pos):
-        return self.get_cell_type(pos) == 1
+        return self.get_cell_type(pos) in [1, 2]
 
     def is_passable(self, pos):
         return not self.is_obstacle(pos)

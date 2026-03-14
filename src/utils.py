@@ -37,7 +37,8 @@ def has_line_of_sight(env, pos1, pos2):
     Check if there is Line of Sight (no walls in between) between pos1 and pos2.
     """
     cells = get_line_of_sight_cells(pos1, pos2)
-    for r, c in cells:
+    # Check only intermediate cells to allow "seeing" the target cell even if it is a wall
+    for r, c in cells[1:-1]:
         if env.is_obstacle((r, c)):
             return False
     return True

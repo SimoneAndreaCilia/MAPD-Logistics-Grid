@@ -76,7 +76,7 @@ class BaseStrategy:
             warehouse_entrances = set(zip(*np.where(agent.local_map == 3)))
             if warehouse_entrances:
                 # Include -1 (unknown) and other warehouse cells in traversable_vals for pathfinding
-                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [0, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
                 if path: return path[0]
                 
         # 1.5. Inside a warehouse without an object? Head to EXIT (4)
@@ -84,13 +84,13 @@ class BaseStrategy:
              agent.state = "EXITING"
              warehouse_exits = set(zip(*np.where(agent.local_map == 4)))
              if warehouse_exits:
-                 path = a_star_path(agent.local_map, agent.pos, warehouse_exits, [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+                 path = a_star_path(agent.local_map, agent.pos, warehouse_exits, [0, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
                  if path: return path[0]
                 
         # 2. Knows objects and not a Scout? Go to the nearest one
         elif agent.known_objects and agent.role != "Scout":
             agent.state = "FETCHING"
-            path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+            path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
             if path: return path[0]
 
         # 2.5. Scout knows objects? RENDEZVOUS with nearest Collector to share data
@@ -102,7 +102,7 @@ class BaseStrategy:
                 collector_positions = [c["pos"] for c in collectors]
                 # Find nearest collector position to the agent
                 nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
-                path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+                path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [0, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
                 if path: return path[0]
             
         agent.state = "EXPLORING"
@@ -138,7 +138,7 @@ class BaseStrategy:
             
             # Don't path if already close
             if abs(agent.pos[0] - target_pos[0]) + abs(agent.pos[1] - target_pos[1]) > agent.comm_range:
-                path = a_star_path(agent.local_map, agent.pos, [target_pos], [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+                path = a_star_path(agent.local_map, agent.pos, [target_pos], [0, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
                 if path: return path[0]
         return None
 
@@ -165,7 +165,7 @@ class FrontierStrategy(BaseStrategy):
         # Search for the nearest unknown cell (-1)
         unknown_cells = set(zip(*np.where(agent.local_map == -1)))
         if unknown_cells:
-            path = a_star_path(agent.local_map, agent.pos, unknown_cells, [0, 2, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
+            path = a_star_path(agent.local_map, agent.pos, unknown_cells, [0, 3, 4, -1], dynamic_obstacles=agent.nearby_agents)
             if path: return path[0]
             
         # Coordination (Map Sharing)
