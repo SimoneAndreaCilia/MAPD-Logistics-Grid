@@ -9,9 +9,14 @@ from src.agent import Agent
 from src.strategies import FrontierStrategy, RandomTargetStrategy
 from src.simulation import Simulation
 
+# Pipeline components
+from analyze_logs import analyze_log
+from visualize_simulation import run_visualizer
+
 def main():
     base_path = os.path.dirname(os.path.abspath(__file__))
     json_path = os.path.join(base_path, "data", "A.json")
+    log_path = os.path.join(base_path, "log_A.json")
     
     if not os.path.exists(json_path):
         print(f"Error: The environment file {json_path} does not exist.")
@@ -23,7 +28,7 @@ def main():
         else:
             return
 
-    print(">>> Environment Initialization...")
+    print(">>> Stage 1: Simulation Execution...")
     env = Environment(json_path)
     print(f"Grid Size: {env.grid_size}x{env.grid_size}")
     print(f"Objects to find: {len(env.get_ground_truth_objects())}")
@@ -43,7 +48,17 @@ def main():
         
     print(">>> Simulation Start...")
     sim = Simulation(env, agents, max_ticks=750)
-    sim.run(log_path=os.path.join(base_path, "log_A.json"))
+    sim.run(log_path=log_path)
+    print(">>> Simulation Finished.")
+
+    print("\n>>> Stage 2: Log Analysis...")
+    analyze_log(log_path)
+
+    print("\n>>> Stage 3: Visualization...")
+    try:
+        run_visualizer(log_path=log_path, env_path=json_path)
+    except Exception as e:
+        print(f"Error starting visualizer: {e}")
 
 if __name__ == "__main__":
     main()
