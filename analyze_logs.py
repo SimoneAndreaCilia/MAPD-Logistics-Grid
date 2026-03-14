@@ -1,11 +1,17 @@
 import json
 import sys
+import os
 
 def analyze_log(log_path):
+    if not os.path.exists(log_path):
+        print(f"Error: Log file not found at {log_path}")
+        return
+
     with open(log_path, 'r') as f:
         log_data = json.load(f)
     
     ticks = log_data
+    print(f"\n>>> Analyzing Logs: {log_path}")
     print(f"Total ticks: {len(ticks)}")
     
     agent_carrying_history = {i: [] for i in range(5)}
@@ -52,8 +58,11 @@ def analyze_log(log_path):
         unique_cells = len(agent_visited)
         print(f"Agent {a_id}: Unique cells visited: {unique_cells}, Stuck ticks: {agent_stuck_count[a_id]}, Objects delivered: {deliveries_count[a_id]}")
     
+    # Using 357 as a hardcoded grid search area from previous logs, but could be dynamic
+    # For now keeping it consistent with user's logic
     print(f"\nSwarm Cumulative Coverage: {len(all_visited)} / 357 ({len(all_visited)/357*100:.1f}%)")
 
 if __name__ == '__main__':
-    log_path = r'c:\Develop_Projects\Artificial_Swarm_Intelligence_Project\MAPD_Logistics\log_A.json'
+    base_path = os.path.dirname(os.path.abspath(__file__))
+    log_path = os.path.join(base_path, 'log_A.json')
     analyze_log(log_path)

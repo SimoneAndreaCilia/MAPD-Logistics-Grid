@@ -262,12 +262,17 @@ class SimulationVisualizer:
         
         plt.show()
 
-if __name__ == "__main__":
-    LOG_PATH = os.path.join(os.getcwd(), "log_A.json")
-    ENV_PATH = os.path.join(os.getcwd(), "data", "A.json")
+def run_visualizer(log_path=None, env_path=None):
+    if log_path is None:
+        log_path = os.path.join(os.getcwd(), "log_A.json")
+    if env_path is None:
+        env_path = os.path.join(os.getcwd(), "data", "A.json")
     
-    if os.path.exists(LOG_PATH) and os.path.exists(ENV_PATH):
-        vis = SimulationVisualizer(LOG_PATH, ENV_PATH)
+    if os.path.exists(log_path) and os.path.exists(env_path):
+        vis = SimulationVisualizer(log_path, env_path)
         vis.run_animation()
     else:
-        print("Required files not found (log_A.json or data/A.json)")
+        print(f"Error: Required files not found:\nLog: {log_path}\nEnv: {env_path}")
+
+if __name__ == "__main__":
+    run_visualizer()
