@@ -39,6 +39,9 @@ class Agent:
     def set_strategy(self, strategy):
         self.strategy = strategy
 
+    def __repr__(self):
+        return f"Agent(id={self.id}, pos={self.pos}, battery={self.battery}, role={self.role}, state={self.state})"
+
     def sense(self, env):
         if not self.is_active:
             return
