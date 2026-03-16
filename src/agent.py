@@ -52,31 +52,36 @@ class Agent:
             if env.has_object((r, c)) and not self.carrying_object:
                 self.known_objects.add((r, c))
 
-    def sync_data(self, other):
+    @staticmethod
+    def sync_maps(a: 'Agent', b: 'Agent') -> None:
         """
-        Synchronizes map and object data with another agent efficiently using numpy and sets.
+        Symmetrically synchronizes map and object data between two agents in a single call.
+        Both agents get the merged result atomically, avoiding the double-call mutation bug.
         This is called by the Simulation manager when agents are within comm_range.
         """
-        if not self.is_active or not other.is_active:
+        if not a.is_active or not b.is_active:
             return
-            
-        # Merge local maps (takes the max, so it replaces -1 with known cell types)
-        self.local_map = np.maximum(self.local_map, other.local_map)
-        
-        # Share known objects
-        other.known_objects.update(self.known_objects)
-        self.known_objects.update(other.known_objects)
-        
-        # If I am a Scout and I just shared my data with a Collector, I can clear my known_objects
-        # so I stop the Rendezvous and go back to exploring.
-        if self.role == AgentRole.SCOUT and other.role == AgentRole.COLLECTOR:
-            self.known_objects.clear()
-        # Vice versa for the other agent if roles are reversed
-        if other.role == AgentRole.SCOUT and self.role == AgentRole.COLLECTOR:
-            other.known_objects.clear()
-            
-        # Update last known metadata (position and role)
-        self.last_known_others[other.id] = {"pos": other.pos, "role": other.role}
+
+        # Merge local maps symmetrically: both agents receive the best-known value per cell
+        merged_map = np.maximum(a.local_map, b.local_map)
+        a.local_map = merged_map
+        b.local_map = merged_map.copy()
+
+        # Compute the union of known objects BEFORE any handoff clearing
+        shared_objects = a.known_objects | b.known_objects
+        a.known_objects = shared_objects.copy()
+        b.known_objects = shared_objects.copy()
+
+        # Scout → Collector handoff: once objects are shared, the Scout clears its list
+        # so it exits RENDEZVOUS and goes back to exploring.
+        if a.role == AgentRole.SCOUT and b.role == AgentRole.COLLECTOR:
+            a.known_objects.clear()
+        elif b.role == AgentRole.SCOUT and a.role == AgentRole.COLLECTOR:
+            b.known_objects.clear()
+
+        # Update each agent's last-known metadata about the other
+        a.last_known_others[b.id] = {"pos": b.pos, "role": b.role}
+        b.last_known_others[a.id] = {"pos": a.pos, "role": a.role}
 
     def decide_and_move(self, env):
         if not self.is_active or self.battery <= 0:

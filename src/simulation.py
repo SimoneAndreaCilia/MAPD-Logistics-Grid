@@ -1,3 +1,4 @@
+from .agent import Agent
 from .utils import SimulationLogger, manhattan_distance, has_line_of_sight
 
 class Simulation:
@@ -97,8 +98,7 @@ class Simulation:
                 dist = abs(a1.pos[0] - a2.pos[0]) + abs(a1.pos[1] - a2.pos[1])
                 # If they are within range of either agent
                 if dist <= a1.comm_range or dist <= a2.comm_range:
-                    a1.sync_data(a2)
-                    a2.sync_data(a1)
+                    Agent.sync_maps(a1, a2)
                     a1.is_connected = True
                     a2.is_connected = True
         
