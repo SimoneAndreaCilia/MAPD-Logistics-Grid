@@ -6,6 +6,3 @@ log_*.json
 .venv/
 __pycache__/
 *.pyc
-
-# Test scripts and results 
-test/
