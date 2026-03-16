@@ -1,48 +1,62 @@
+from __future__ import annotations
 import numpy as np
+from typing import Tuple, List, Set, Dict, Optional, Any, TYPE_CHECKING
 from .enums import AgentRole, CellType
 from .utils import get_visible_cells, manhattan_distance
 
+if TYPE_CHECKING:
+    from .environment import Environment
+    from .strategies import BaseStrategy
+
 class Agent:
-    def __init__(self, agent_id, env_size, vision_range=2, comm_range=2, battery=100, role=None):
-        self.id = agent_id
-        self.pos = (0, 0)
-        self.battery = battery
-        self.vision_range = vision_range
-        self.comm_range = comm_range
+    def __init__(
+        self, 
+        agent_id: int, 
+        env_size: int, 
+        vision_range: int = 2, 
+        comm_range: int = 2, 
+        battery: int = 100, 
+        role: Optional[AgentRole] = None
+    ):
+        self.id: int = agent_id
+        self.pos: Tuple[int, int] = (0, 0)
+        self.battery: int = battery
+        self.vision_range: int = vision_range
+        self.comm_range: int = comm_range
         
-        self.carrying_object = False
-        self.is_active = True
-        self.is_connected = False
-        self.nearby_agents = [] # List of tuples containing perceived positions of other agents
+        self.carrying_object: bool = False
+        self.is_active: bool = True
+        self.is_connected: bool = False
+        self.nearby_agents: List[Tuple[int, int]] = [] # List of positions of other agents
         
-        self.role = role
-        self.state = "EXPLORING" # Used by agents: EXPLORING, FETCHING, DELIVERING, EXITING, RENDEZVOUS
+        self.role: Optional[AgentRole] = role
+        self.state: str = "EXPLORING" 
         
         # Local map: -1 indicates 'unknown'
-        self.local_map = np.full((env_size, env_size), -1, dtype=int)
+        self.local_map: np.ndarray = np.full((env_size, env_size), -1, dtype=int)
         # The starting cell is always a free corridor
-        self.local_map[0, 0] = 0 
+        self.local_map[0, 0] = CellType.CORRIDOR 
         
         # Set of coordinates of objects seen but not yet collected
-        self.known_objects = set()
+        self.known_objects: Set[Tuple[int, int]] = set()
         
         # Track number of visits to each cell to avoid getting stuck
-        self.visited_cells = {self.pos: 1}
-        self.last_pos = None
-        self.current_target = None # Persistent goal for multiple ticks
+        self.visited_cells: Dict[Tuple[int, int], int] = {self.pos: 1}
+        self.last_pos: Optional[Tuple[int, int]] = None
+        self.current_target: Optional[Tuple[int, int]] = None 
         
         # Track last known positions of other agents to coordinate map sharing
-        self.last_known_others = {}
+        self.last_known_others: Dict[int, Dict[str, Any]] = {}
         
-        self.strategy = None
+        self.strategy: Optional[BaseStrategy] = None
 
-    def set_strategy(self, strategy):
+    def set_strategy(self, strategy: BaseStrategy) -> None:
         self.strategy = strategy
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f"Agent(id={self.id}, pos={self.pos}, battery={self.battery}, role={self.role}, state={self.state})"
 
-    def sense(self, env):
+    def sense(self, env: Environment) -> None:
         if not self.is_active:
             return
             
@@ -56,7 +70,7 @@ class Agent:
                 self.known_objects.add((r, c))
 
     @staticmethod
-    def sync_maps(a: 'Agent', b: 'Agent') -> None:
+    def sync_maps(a: Agent, b: Agent) -> None:
         """
         Symmetrically synchronizes map and object data between two agents in a single call.
         Both agents get the merged result atomically, avoiding the double-call mutation bug.
@@ -86,7 +100,7 @@ class Agent:
         a.last_known_others[b.id] = {"pos": b.pos, "role": b.role}
         b.last_known_others[a.id] = {"pos": a.pos, "role": a.role}
 
-    def decide_and_move(self, env) -> bool:
+    def decide_and_move(self, env: Environment) -> bool:
         """
         Orchestrates one agent tick: guard → strategy → move → pickup → deliver → state → energy.
         Returns True if a tick was consumed, False if the agent is inactive.
@@ -113,7 +127,7 @@ class Agent:
     # Private helpers — each with a single, well-defined responsibility
     # ------------------------------------------------------------------
 
-    def _move_to(self, next_pos) -> None:
+    def _move_to(self, next_pos: Optional[Tuple[int, int]]) -> None:
         """Updates the agent's position if next_pos is valid and different from the current one."""
         if next_pos and next_pos != self.pos:
             self.last_pos = self.pos
@@ -124,7 +138,7 @@ class Agent:
             print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
             self.current_target = None
 
-    def _try_pickup(self, env) -> None:
+    def _try_pickup(self, env: Environment) -> None:
         """Picks up an object if the agent is standing on one, is idle, and is not a Scout."""
         if not self.carrying_object and env.has_object(self.pos) and self.role != AgentRole.SCOUT:
             env.remove_object(self.pos)
@@ -132,13 +146,13 @@ class Agent:
             self.state = "DELIVERING"
             self.known_objects.discard(self.pos)  # discard is safe even if not present
 
-    def _try_deliver(self, env) -> None:
+    def _try_deliver(self, env: Environment) -> None:
         """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
         if self.carrying_object and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
             self.carrying_object = False
             self.state = "EXITING"  # Immediately switch state to exit the warehouse
 
-    def _update_state(self, env) -> None:
+    def _update_state(self, env: Environment) -> None:
         """
         Manages FSM state transitions.
         Resets to EXPLORING only when back in a corridor, ensuring the agent
@@ -155,7 +169,7 @@ class Agent:
         if self.battery <= 0:
             self.is_active = False
 
-    def validate_known_objects(self, env) -> None:
+    def validate_known_objects(self, env: Environment) -> None:
         """Removes objects from known_objects if they are no longer present in the environment (e.g., collected by another agent)."""
         self.known_objects = {pos for pos in self.known_objects if env.has_object(pos)}
 

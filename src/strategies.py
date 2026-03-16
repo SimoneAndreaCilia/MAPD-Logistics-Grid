@@ -1,10 +1,16 @@
+from __future__ import annotations
 import random
 from collections import deque
 import numpy as np
 import heapq
+from typing import List, Tuple, Dict, Optional, Set, Any, TYPE_CHECKING
 from .enums import AgentRole, CellType
 
-def get_neighbors(pos, grid_shape):
+if TYPE_CHECKING:
+    from .agent import Agent
+    from .environment import Environment
+
+def get_neighbors(pos: Tuple[int, int], grid_shape: Tuple[int, int]) -> List[Tuple[int, int]]:
     r, c = pos
     neighbors = []
     for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
@@ -14,7 +20,14 @@ def get_neighbors(pos, grid_shape):
     random.shuffle(neighbors)
     return neighbors
 
-def a_star_path(local_map, start, targets, traversable_vals, visited_counts=None, strictly_known=False):
+def a_star_path(
+    local_map: np.ndarray, 
+    start: Tuple[int, int], 
+    targets: List[Tuple[int, int]], 
+    traversable_vals: List[int], 
+    visited_counts: Optional[Dict[Tuple[int, int], int]] = None, 
+    strictly_known: bool = False
+) -> Optional[List[Tuple[int, int]]]:
     """
     Finds the shortest path to the nearest target using A* algorithm.
     Uses weighted costs to prefer known corridors and avoid warehouses/unknowns.
@@ -75,10 +88,10 @@ def a_star_path(local_map, start, targets, traversable_vals, visited_counts=None
     return None
 
 class BaseStrategy:
-    def get_next_move(self, agent, env):
+    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
         raise NotImplementedError
         
-    def get_priority_move(self, agent):
+    def get_priority_move(self, agent: Agent) -> Optional[Tuple[int, int]]:
         """
         Standard priority logic for all strategies:
         1. If carrying an object, go to nearest warehouse.
@@ -140,7 +153,7 @@ class BaseStrategy:
         agent.state = "EXPLORING"
         return None
 
-    def get_frontier_cells(self, agent):
+    def get_frontier_cells(self, agent: Agent) -> List[Tuple[int, int]]:
         """
         Identifies cells that are known and traversable, but adjacent to unknown (-1) cells.
         """
@@ -162,7 +175,7 @@ class BaseStrategy:
                         break
         return frontier
 
-    def get_exploration_move(self, agent):
+    def get_exploration_move(self, agent: Agent) -> Tuple[int, int]:
         """
         Fallback exploration move using the visited_cells heatmap to avoid traps.
         Prioritizes neighbors leading towards the nearest frontier and penalizes backtracking.
@@ -235,7 +248,7 @@ class BaseStrategy:
             return best_candidates[0]
         return random.choice(best_candidates)
 
-    def get_coordination_move(self, agent):
+    def get_coordination_move(self, agent: Agent) -> Optional[Tuple[int, int]]:
         """
         If idle, try to move toward the last known position of another agent to share maps.
         """
@@ -253,7 +266,7 @@ class BaseStrategy:
         return None
 
 class RandomTargetStrategy(BaseStrategy):
-    def get_next_move(self, agent, env):
+    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
         # Priorities (Package/Objects)
         move = self.get_priority_move(agent)
         if move: return move
@@ -267,7 +280,7 @@ class RandomTargetStrategy(BaseStrategy):
         return self.get_exploration_move(agent)
 
 class FrontierStrategy(BaseStrategy):
-    def get_next_move(self, agent, env):
+    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
         # Priorities (Package/Objects)
         move = self.get_priority_move(agent)
         if move: return move

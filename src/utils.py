@@ -1,9 +1,14 @@
+from __future__ import annotations
 import json
+from typing import List, Tuple, Dict, Any, TYPE_CHECKING
 
-def manhattan_distance(pos1, pos2):
+if TYPE_CHECKING:
+    from .environment import Environment
+
+def manhattan_distance(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> int:
     return abs(pos1[0] - pos2[0]) + abs(pos1[1] - pos2[1])
 
-def get_line_of_sight_cells(pos1, pos2):
+def get_line_of_sight_cells(pos1: Tuple[int, int], pos2: Tuple[int, int]) -> List[Tuple[int, int]]:
     """
     Returns the cells intersected by a straight line (Bresenham) between pos1 and pos2.
     """
@@ -32,7 +37,7 @@ def get_line_of_sight_cells(pos1, pos2):
             
     return cells
 
-def has_line_of_sight(env, pos1, pos2):
+def has_line_of_sight(env: Environment, pos1: Tuple[int, int], pos2: Tuple[int, int]) -> bool:
     """
     Check if there is Line of Sight (no walls in between) between pos1 and pos2.
     """
@@ -43,7 +48,7 @@ def has_line_of_sight(env, pos1, pos2):
             return False
     return True
 
-def get_visible_cells(env, pos, vision_range):
+def get_visible_cells(env: Environment, pos: Tuple[int, int], vision_range: int) -> List[Tuple[int, int]]:
     """
     Returns a list of coordinates visible to the agent,
     within vision_range (Manhattan) and not occluded by walls.
@@ -65,7 +70,7 @@ class SimulationLogger:
     def __init__(self):
         self.log_data = []
         
-    def add_tick_state(self, tick, agents, score, objects_left):
+    def add_tick_state(self, tick: int, agents: List[Dict[str, Any]], score: int, objects_left: int) -> None:
         """
         Saves the state at the current tick.
         agents = [{"id": a.id, "pos": a.pos, "battery": a.battery, "carrying": bool}]
@@ -78,6 +83,6 @@ class SimulationLogger:
         }
         self.log_data.append(state)
         
-    def save_log(self, filepath):
+    def save_log(self, filepath: str) -> None:
         with open(filepath, 'w') as f:
             json.dump(self.log_data, f, indent=2)
