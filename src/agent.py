@@ -155,3 +155,7 @@ class Agent:
         if self.battery <= 0:
             self.is_active = False
 
+    def validate_known_objects(self, env) -> None:
+        """Removes objects from known_objects if they are no longer present in the environment (e.g., collected by another agent)."""
+        self.known_objects = {pos for pos in self.known_objects if env.has_object(pos)}
+

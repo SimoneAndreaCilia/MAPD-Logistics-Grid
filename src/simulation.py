@@ -32,6 +32,7 @@ class Simulation:
                 
             # Perception
             agent.sense(self.env)
+            agent.validate_known_objects(self.env)
             
             # Populate nearby agents for soft repulsion/awareness
             agent.nearby_agents = []
