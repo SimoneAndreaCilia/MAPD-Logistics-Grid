@@ -83,52 +83,72 @@ class Agent:
         a.last_known_others[b.id] = {"pos": b.pos, "role": b.role}
         b.last_known_others[a.id] = {"pos": a.pos, "role": a.role}
 
-    def decide_and_move(self, env):
+    def decide_and_move(self, env) -> bool:
+        """
+        Orchestrates one agent tick: guard → strategy → move → pickup → deliver → state → energy.
+        Returns True if a tick was consumed, False if the agent is inactive.
+        """
         if not self.is_active or self.battery <= 0:
             self.is_active = False
-            return False # No move made
-            
-        next_pos = self.strategy.get_next_move(self, env)
-        
-        # Collision avoidance is disabled to allow overlap
+            return False
 
-        
-        # Target management: clear target if reached
+        next_pos = self.strategy.get_next_move(self, env)
+
+        # Target management: clear target if already reached
         if self.current_target == self.pos:
             self.current_target = None
 
+        self._move_to(next_pos)
+        self._try_pickup(env)
+        self._try_deliver(env)
+        self._update_state(env)
+        self._consume_energy()
+
+        return True
+
+    # ------------------------------------------------------------------
+    # Private helpers — each with a single, well-defined responsibility
+    # ------------------------------------------------------------------
+
+    def _move_to(self, next_pos) -> None:
+        """Updates the agent's position if next_pos is valid and different from the current one."""
         if next_pos and next_pos != self.pos:
             self.last_pos = self.pos
             self.pos = next_pos
             self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1
-        elif next_pos != self.pos: # Only print stuck message if it actually tried to move but couldn't path
+        elif next_pos is not None and next_pos != self.pos:
+            # Strategy returned a position but pathfinding failed to reach it
             print(f"Agent {self.id} stuck at {self.pos}. Strategy returned {next_pos}")
-            self.current_target = None # Clear failed target
-            
-        # Picks up the object if he steps on it and has nothing in his hand, and is not a Scout
+            self.current_target = None
+
+    def _try_pickup(self, env) -> None:
+        """Picks up an object if the agent is standing on one, is idle, and is not a Scout."""
         if not self.carrying_object and env.has_object(self.pos) and self.role != AgentRole.SCOUT:
             env.remove_object(self.pos)
             self.carrying_object = True
             self.state = "DELIVERING"
-            if self.pos in self.known_objects:
-                self.known_objects.remove(self.pos)
-                
-        # Drops off the object if it arrives at a warehouse entrance or internal cell
-        # Warehouses have values 2 (internal), 3 (entrance), 4 (exit).
-        cell_type = env.get_cell_type(self.pos)
-        if self.carrying_object and cell_type in [2, 3]:
+            self.known_objects.discard(self.pos)  # discard is safe even if not present
+
+    def _try_deliver(self, env) -> None:
+        """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
+        if self.carrying_object and env.get_cell_type(self.pos) in [2, 3]:
             self.carrying_object = False
-            self.state = "EXITING" # Immediately switch state to exit the warehouse
-            
-        # Resets state to EXPLORING only when back in a corridor (type 0)
-        # This ensures the agent follows the EXITING logic through the red cell (4)
+            self.state = "EXITING"  # Immediately switch state to exit the warehouse
+
+    def _update_state(self, env) -> None:
+        """
+        Manages FSM state transitions.
+        Resets to EXPLORING only when back in a corridor, ensuring the agent
+        follows the EXITING path through the exit cell (type 4) before exploring again.
+        """
+        cell_type = env.get_cell_type(self.pos)
         if not self.carrying_object and self.state in ["EXITING", "DELIVERING", "FETCHING"] and cell_type == 0:
-            self.state = "EXPLORING" 
-            self.current_target = None # Forces re-selection of exploration target
-            
+            self.state = "EXPLORING"
+            self.current_target = None  # Forces re-selection of exploration target
+
+    def _consume_energy(self) -> None:
+        """Decrements battery by 1 and deactivates the agent if it reaches zero."""
         self.battery -= 1
-            
         if self.battery <= 0:
             self.is_active = False
-            
-        return True # Move/action made and costs 1 tick/energy
+
