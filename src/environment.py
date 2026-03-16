@@ -1,4 +1,5 @@
 import json
+from .enums import CellType
 
 class Warehouse:
     def __init__(self, w_id, side, entrance, exit_pos, area):
@@ -35,15 +36,16 @@ class Environment:
 
     def get_cell_type(self, pos):
         if not self.in_bounds(pos):
-            return 1 # Wall/Out of map
+            return CellType.WALL
         r, c = pos
         return self.grid[r][c]
 
     def is_obstacle(self, pos):
-        return self.get_cell_type(pos) in [1, 2]
+        return self.get_cell_type(pos) in [CellType.WALL, CellType.WAREHOUSE]
 
     def is_passable(self, pos):
         return not self.is_obstacle(pos)
+
 
     def has_object(self, pos):
         return pos in self.objects

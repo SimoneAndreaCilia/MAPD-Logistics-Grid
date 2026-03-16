@@ -2,7 +2,7 @@ import random
 from collections import deque
 import numpy as np
 import heapq
-from .enums import AgentRole
+from .enums import AgentRole, CellType
 
 def get_neighbors(pos, grid_shape):
     r, c = pos
@@ -24,8 +24,8 @@ def a_star_path(local_map, start, targets, traversable_vals, visited_counts=None
         return None
         
     traversable = set(traversable_vals)
-    if strictly_known and -1 in traversable:
-        traversable.remove(-1)
+    if strictly_known and CellType.UNKNOWN in traversable:
+        traversable.remove(CellType.UNKNOWN)
         
     def h(pos):
         return min(abs(pos[0]-t[0]) + abs(pos[1]-t[1]) for t in targets)
@@ -33,9 +33,9 @@ def a_star_path(local_map, start, targets, traversable_vals, visited_counts=None
     # Weighted costs based on cell type and visited frequency
     def get_cost(cell_val, pos):
         base_cost = 1
-        if cell_val == 0: base_cost = 1   # Known Corridor
-        elif cell_val == -1: base_cost = 3  # Unknown: prefer known corridors
-        elif cell_val in [2, 3, 4]: base_cost = 10 # Warehouse: avoid if possible
+        if cell_val == CellType.CORRIDOR:  base_cost = 1   # Known Corridor
+        elif cell_val == CellType.UNKNOWN:  base_cost = 3  # Unknown: prefer known corridors
+        elif cell_val in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]: base_cost = 10  # Warehouse zone: avoid if possible
         
         # Add penalty for visits to encourage fresh paths
         visit_penalty = 0
@@ -88,41 +88,41 @@ class BaseStrategy:
         if agent.carrying_object:
             agent.state = "DELIVERING"
             # Target ONLY entrance cells (3)
-            warehouse_entrances = set(zip(*np.where(agent.local_map == 3)))
+            warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
             if warehouse_entrances:
                 # Include 2 (warehouse) in traversable_vals so agents can move inside if they are there
-                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [0, 2, 3, 4, -1], visited_counts=agent.visited_cells)
+                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
                 if path: return path[0]
                 
         # 1.5. Inside a warehouse (2, 3, 4) without an object? Head out!
-        elif not agent.carrying_object and agent.local_map[agent.pos] in [2, 3, 4]:
+        elif not agent.carrying_object and agent.local_map[agent.pos] in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
              agent.state = "EXITING"
              current_type = agent.local_map[agent.pos]
              
-             if current_type == 4:
-                 # At the exit cell, target the nearest known corridor (0)
-                 corridors = set(zip(*np.where(agent.local_map == 0)))
+             if current_type == CellType.EXIT:
+                 # At the exit cell, target the nearest known corridor
+                 corridors = set(zip(*np.where(agent.local_map == CellType.CORRIDOR)))
                  if corridors:
-                     # Allow moving from 4 to 0
-                     path = a_star_path(agent.local_map, agent.pos, corridors, [0, 4], visited_counts=agent.visited_cells)
+                     # Allow moving from EXIT to CORRIDOR
+                     path = a_star_path(agent.local_map, agent.pos, corridors, [CellType.CORRIDOR, CellType.EXIT], visited_counts=agent.visited_cells)
                      if path: return path[0]
              else:
                  # Inside the warehouse, target the nearest known exit cell (4)
-                 warehouse_exits = set(zip(*np.where(agent.local_map == 4)))
+                 warehouse_exits = set(zip(*np.where(agent.local_map == CellType.EXIT)))
                  if warehouse_exits:
-                     path = a_star_path(agent.local_map, agent.pos, warehouse_exits, [0, 2, 3, 4, -1], visited_counts=agent.visited_cells)
+                     path = a_star_path(agent.local_map, agent.pos, warehouse_exits, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
                      if path: return path[0]
                  else:
                      # If exit 4 is not yet known, fallback to any corridor 0
-                     corridors = set(zip(*np.where(agent.local_map == 0)))
+                     corridors = set(zip(*np.where(agent.local_map == CellType.CORRIDOR)))
                      if corridors:
-                         path = a_star_path(agent.local_map, agent.pos, corridors, [0, 2, 3, 4, -1], visited_counts=agent.visited_cells)
+                         path = a_star_path(agent.local_map, agent.pos, corridors, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
                          if path: return path[0]
                 
         # 2. Knows objects and not a Scout? Go to the nearest one
         elif agent.known_objects and agent.role != AgentRole.SCOUT:
             agent.state = "FETCHING"
-            path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1], visited_counts=agent.visited_cells)
+            path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
             if path: return path[0]
 
         # 2.5. Scout knows objects? RENDEZVOUS with nearest Collector to share data
@@ -134,7 +134,7 @@ class BaseStrategy:
                 collector_positions = [c["pos"] for c in collectors]
                 # Find nearest collector position to the agent
                 nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
-                path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [0, 2, 3, 4, -1], visited_counts=agent.visited_cells)
+                path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
                 if path: return path[0]
             
         agent.state = "EXPLORING"
@@ -146,7 +146,7 @@ class BaseStrategy:
         """
         # Only consider corridors (type 0) as potential sources for new frontiers.
         # This prevents agents from venturing into warehouses to resolve unknown cells.
-        traversable_mask = (agent.local_map == 0)
+        traversable_mask = (agent.local_map == CellType.CORRIDOR)
         unknown_mask = (agent.local_map == -1)
         
         # A cell is a frontier if it is traversable AND has at least one unknown neighbor
@@ -169,7 +169,7 @@ class BaseStrategy:
         """
         neighbors = get_neighbors(agent.pos, agent.local_map.shape)
         # Include 2 to prevent stalls in warehouses
-        valid_moves = [n for n in neighbors if agent.local_map[n[0], n[1]] in [-1, 0, 2, 3, 4]]
+        valid_moves = [n for n in neighbors if agent.local_map[n[0], n[1]] in [CellType.UNKNOWN, CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]]
         
         if not valid_moves:
             return agent.pos
@@ -199,7 +199,7 @@ class BaseStrategy:
             # EXPLORATION OPTIMIZATION: Avoid warehouses unless necessary
             if agent.state == "EXPLORING":
                 cell_type = agent.local_map[move[0], move[1]]
-                if cell_type in [2, 3, 4]:
+                if cell_type in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
                     score += 15 # High penalty for entering warehouses while exploring
             return score
 
@@ -248,7 +248,7 @@ class BaseStrategy:
             # Don't path if already close
             if abs(agent.pos[0] - target_pos[0]) + abs(agent.pos[1] - target_pos[1]) > agent.comm_range:
                 # Use strictly_known=True for safer coordination pathfinding
-                path = a_star_path(agent.local_map, agent.pos, [target_pos], [0, 1, 2, 3, 4, -1], visited_counts=agent.visited_cells, strictly_known=True)
+                path = a_star_path(agent.local_map, agent.pos, [target_pos], [CellType.CORRIDOR, CellType.WALL, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=True)
                 if path: return path[0]
         return None
 
@@ -281,7 +281,7 @@ class FrontierStrategy(BaseStrategy):
             if agent.pos == agent.current_target:
                 agent.current_target = None
             # Or if it somehow became a wall (1) which shouldn't happen for frontiers
-            elif agent.local_map[agent.current_target] == 1:
+            elif agent.local_map[agent.current_target] == CellType.WALL:
                 agent.current_target = None
                 
         if not agent.current_target and frontier:
@@ -308,7 +308,7 @@ class FrontierStrategy(BaseStrategy):
             
         if agent.current_target:
             # Try to reach the target using A* with visited penalization
-            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [0, 2, 3, 4, -1], visited_counts=agent.visited_cells, strictly_known=False)
+            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=False)
             
             if path:
                 return path[0]

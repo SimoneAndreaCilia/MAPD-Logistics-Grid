@@ -1,5 +1,5 @@
 import numpy as np
-from .enums import AgentRole
+from .enums import AgentRole, CellType
 from .utils import get_visible_cells, manhattan_distance
 
 class Agent:
@@ -131,7 +131,7 @@ class Agent:
 
     def _try_deliver(self, env) -> None:
         """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
-        if self.carrying_object and env.get_cell_type(self.pos) in [2, 3]:
+        if self.carrying_object and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
             self.carrying_object = False
             self.state = "EXITING"  # Immediately switch state to exit the warehouse
 
@@ -142,7 +142,7 @@ class Agent:
         follows the EXITING path through the exit cell (type 4) before exploring again.
         """
         cell_type = env.get_cell_type(self.pos)
-        if not self.carrying_object and self.state in ["EXITING", "DELIVERING", "FETCHING"] and cell_type == 0:
+        if not self.carrying_object and self.state in ["EXITING", "DELIVERING", "FETCHING"] and cell_type == CellType.CORRIDOR:
             self.state = "EXPLORING"
             self.current_target = None  # Forces re-selection of exploration target
 
