@@ -1,8 +1,9 @@
 import numpy as np
+from .enums import AgentRole
 from .utils import get_visible_cells, manhattan_distance
 
 class Agent:
-    def __init__(self, agent_id, env_size, vision_range=2, comm_range=2, battery=100):
+    def __init__(self, agent_id, env_size, vision_range=2, comm_range=2, battery=100, role=None):
         self.id = agent_id
         self.pos = (0, 0)
         self.battery = battery
@@ -14,7 +15,7 @@ class Agent:
         self.is_connected = False
         self.nearby_agents = [] # List of tuples containing perceived positions of other agents
         
-        self.role = None
+        self.role = role
         self.state = "EXPLORING" # Used by agents: EXPLORING, FETCHING, DELIVERING, EXITING, RENDEZVOUS
         
         # Local map: -1 indicates 'unknown'
@@ -37,10 +38,6 @@ class Agent:
 
     def set_strategy(self, strategy):
         self.strategy = strategy
-        if strategy.__class__.__name__ == "RandomTargetStrategy":
-            self.role = "Scout"
-        elif strategy.__class__.__name__ == "FrontierStrategy":
-            self.role = "Collector"
 
     def sense(self, env):
         if not self.is_active:
@@ -72,10 +69,10 @@ class Agent:
         
         # If I am a Scout and I just shared my data with a Collector, I can clear my known_objects
         # so I stop the Rendezvous and go back to exploring.
-        if self.role == "Scout" and other.role == "Collector":
+        if self.role == AgentRole.SCOUT and other.role == AgentRole.COLLECTOR:
             self.known_objects.clear()
         # Vice versa for the other agent if roles are reversed
-        if other.role == "Scout" and self.role == "Collector":
+        if other.role == AgentRole.SCOUT and self.role == AgentRole.COLLECTOR:
             other.known_objects.clear()
             
         # Update last known metadata (position and role)
@@ -104,7 +101,7 @@ class Agent:
             self.current_target = None # Clear failed target
             
         # Picks up the object if he steps on it and has nothing in his hand, and is not a Scout
-        if not self.carrying_object and env.has_object(self.pos) and self.role != "Scout":
+        if not self.carrying_object and env.has_object(self.pos) and self.role != AgentRole.SCOUT:
             env.remove_object(self.pos)
             self.carrying_object = True
             self.state = "DELIVERING"

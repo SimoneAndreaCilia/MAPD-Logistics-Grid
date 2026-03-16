@@ -2,6 +2,7 @@ import random
 from collections import deque
 import numpy as np
 import heapq
+from .enums import AgentRole
 
 def get_neighbors(pos, grid_shape):
     r, c = pos
@@ -119,15 +120,15 @@ class BaseStrategy:
                          if path: return path[0]
                 
         # 2. Knows objects and not a Scout? Go to the nearest one
-        elif agent.known_objects and agent.role != "Scout":
+        elif agent.known_objects and agent.role != AgentRole.SCOUT:
             agent.state = "FETCHING"
             path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [0, 2, 3, 4, -1], visited_counts=agent.visited_cells)
             if path: return path[0]
 
         # 2.5. Scout knows objects? RENDEZVOUS with nearest Collector to share data
-        elif agent.known_objects and agent.role == "Scout":
+        elif agent.known_objects and agent.role == AgentRole.SCOUT:
             # Filter last_known_others for Collectors
-            collectors = [info for info in agent.last_known_others.values() if info.get("role") == "Collector"]
+            collectors = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COLLECTOR]
             if collectors:
                 agent.state = "RENDEZVOUS"
                 collector_positions = [c["pos"] for c in collectors]
