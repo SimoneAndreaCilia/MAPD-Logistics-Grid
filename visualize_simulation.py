@@ -103,12 +103,24 @@ class SimulationVisualizer:
         # Since the log doesn't list object positions, we recreate it
         self.object_states = []
         current_objs = set(self.initial_objects)
+        
+        # Track the carrying state of each agent from the previous tick
+        prev_carrying = {} 
+        
         for tick in self.log_data:
             for agent in tick['agents']:
-                if agent['carrying_object']:
+                agent_id = agent['id']
+                is_carrying = agent['carrying_object']
+                
+                # An object is removed only if the agent was NOT carrying it 
+                # and now IS carrying it (transition at its current position)
+                if is_carrying and not prev_carrying.get(agent_id, False):
                     p = tuple(agent['pos'])
                     if p in current_objs:
                         current_objs.remove(p)
+                
+                prev_carrying[agent_id] = is_carrying
+                
             self.object_states.append(list(current_objs))
 
     def update_plot(self, frame_idx):
