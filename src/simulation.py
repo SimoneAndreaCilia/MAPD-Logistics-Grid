@@ -1,18 +1,25 @@
+from __future__ import annotations
+from typing import List, TYPE_CHECKING
+
+from .agent import Agent
 from .utils import SimulationLogger, manhattan_distance, has_line_of_sight
 
+if TYPE_CHECKING:
+    from .environment import Environment
+
 class Simulation:
-    def __init__(self, env, agents, max_ticks=750):
-        self.env = env
-        self.agents = agents
-        self.max_ticks = max_ticks
-        self.current_tick = 0
-        self.logger = SimulationLogger()
-        self.is_done = False
+    def __init__(self, env: Environment, agents: List[Agent], max_ticks: int = 750):
+        self.env: Environment = env
+        self.agents: List[Agent] = agents
+        self.max_ticks: int = max_ticks
+        self.current_tick: int = 0
+        self.logger: SimulationLogger = SimulationLogger()
+        self.is_done: bool = False
         
-        self.total_objects = len(env.get_ground_truth_objects())
-        self.score = 0
+        self.total_objects: int = len(env.get_ground_truth_objects())
+        self.score: int = 0
         
-    def step(self):
+    def step(self) -> None:
         """
         Executes a TICK for the simulation.
         In this round-robin design, each agent in sequence 
@@ -31,6 +38,7 @@ class Simulation:
                 
             # Perception
             agent.sense(self.env)
+            agent.validate_known_objects(self.env)
             
             # Populate nearby agents for soft repulsion/awareness
             agent.nearby_agents = []
@@ -62,7 +70,7 @@ class Simulation:
                     self.is_done = True
                     break
                     
-    def log_state(self, objects_left):
+    def log_state(self, objects_left: int) -> None:
         agents_data = []
         for a in self.agents:
             agents_data.append({
@@ -74,7 +82,7 @@ class Simulation:
             })
         self.logger.add_tick_state(self.current_tick, agents_data, self.score, objects_left)
         
-    def handle_communications(self):
+    def handle_communications(self) -> None:
         """
         Check all unique pairs of active agents. 
         If they are within communication range, trigger map/data merging.
@@ -97,12 +105,11 @@ class Simulation:
                 dist = abs(a1.pos[0] - a2.pos[0]) + abs(a1.pos[1] - a2.pos[1])
                 # If they are within range of either agent
                 if dist <= a1.comm_range or dist <= a2.comm_range:
-                    a1.sync_data(a2)
-                    a2.sync_data(a1)
+                    Agent.sync_maps(a1, a2)
                     a1.is_connected = True
                     a2.is_connected = True
         
-    def run(self, log_path="log.json"):
+    def run(self, log_path: str = "log.json") -> None:
         # Log initial state (Tick 0)
         objects_left = len(self.env.get_ground_truth_objects())
         self.log_state(objects_left)
