@@ -68,7 +68,7 @@ class SimulationVisualizer:
         self.tick_text = self.fig.text(0.05, 0.85, '', fontweight='bold', fontsize=14)
         self.score_text = self.fig.text(0.05, 0.78, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.5))
         self.objs_text = self.fig.text(0.05, 0.73, '', fontsize=11, bbox=dict(facecolor='gold', alpha=0.3))
-        self.agent_info_text = self.fig.text(0.05, 0.65, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
+        self.agent_info_text = self.fig.text(0.05, 0.60, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
         
         # Slider & Buttons
         ax_slider = plt.axes([0.15, 0.08, 0.7, 0.03])
@@ -102,14 +102,38 @@ class SimulationVisualizer:
         # We need to know which objects are where at each tick
         # Since the log doesn't list object positions, we recreate it
         self.object_states = []
+        self.delivery_counts = [] # List of counts per frame: [[a0, a1, a2, a3, a4], ...]
+        
         current_objs = set(self.initial_objects)
+        
+        # Track the carrying state of each agent from the previous tick
+        prev_carrying = {} 
+        current_delivery_counts = [0] * 5 # Assuming 5 agents
+        
         for tick in self.log_data:
             for agent in tick['agents']:
-                if agent['carrying_object']:
-                    p = tuple(agent['pos'])
-                    if p in current_objs:
-                        current_objs.remove(p)
+                agent_id = agent['id']
+                is_carrying = agent['carrying_object']
+                pos = tuple(agent['pos'])
+                
+                # An object is removed only if the agent was NOT carrying it 
+                # and now IS carrying it (transition at its current position)
+                if is_carrying and not prev_carrying.get(agent_id, False):
+                    if pos in current_objs:
+                        current_objs.remove(pos)
+                
+                # Delivery detection: Transition from True -> False while at Warehouse (2) or Entrance (3)
+                if not is_carrying and prev_carrying.get(agent_id, False):
+                    # Check cell type from grid using current position
+                    if 0 <= pos[0] < self.grid_size and 0 <= pos[1] < self.grid_size:
+                        cell_type = self.grid[pos[0], pos[1]]
+                        if cell_type in [2, 3]: # WAREHOUSE or ENTRANCE
+                            current_delivery_counts[agent_id] += 1
+                
+                prev_carrying[agent_id] = is_carrying
+                
             self.object_states.append(list(current_objs))
+            self.delivery_counts.append(list(current_delivery_counts))
 
     def update_plot(self, frame_idx):
         self.current_frame = int(frame_idx)
@@ -166,8 +190,16 @@ class SimulationVisualizer:
             self.fov_patch.set_facecolor(self.agent_colors[self.selected_agent_idx])
             
             role = "Scout" if self.selected_agent_idx >= 3 else "Collector"
+            carrying_str = "Yes" if agent['carrying_object'] else "No"
+            delivered = self.delivery_counts[self.current_frame][self.selected_agent_idx]
             
-            info_str = f"Selected: Agent {self.selected_agent_idx}\nRole: {role}\nBattery: {agent['battery']}/{self.max_batteries[self.selected_agent_idx]}\nPos: ({agent['pos'][1]}, {agent['pos'][0]})"
+            info_str = (f"Selected: Agent {self.selected_agent_idx}\n"
+                        f"Role: {role}\n"
+                        f"Battery: {agent['battery']}/{self.max_batteries[self.selected_agent_idx]}\n"
+                        f"Carrying: {carrying_str}\n"
+                        f"Delivered: {delivered}\n"
+                        f"Pos: ({agent['pos'][1]}, {agent['pos'][0]})")
+            
             self.agent_info_text.set_text(info_str)
             self.agent_info_text.set_bbox(dict(facecolor=self.agent_colors[self.selected_agent_idx], alpha=0.3))
         else:
