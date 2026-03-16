@@ -4,7 +4,7 @@ from collections import deque
 import numpy as np
 import heapq
 from typing import List, Tuple, Dict, Optional, Set, Any, TYPE_CHECKING
-from .enums import AgentRole, CellType
+from .enums import AgentRole, CellType, AgentState
 
 if TYPE_CHECKING:
     from .agent import Agent
@@ -99,7 +99,7 @@ class BaseStrategy:
         """
         # 1. Carrying an object? Return to warehouse ENTRANCE (3)
         if agent.carrying_object:
-            agent.state = "DELIVERING"
+            agent.state = AgentState.DELIVERING
             # Target ONLY entrance cells (3)
             warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
             if warehouse_entrances:
@@ -109,7 +109,7 @@ class BaseStrategy:
                 
         # 1.5. Inside a warehouse (2, 3, 4) without an object? Head out!
         elif not agent.carrying_object and agent.local_map[agent.pos] in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
-             agent.state = "EXITING"
+             agent.state = AgentState.EXITING
              current_type = agent.local_map[agent.pos]
              
              if current_type == CellType.EXIT:
@@ -134,7 +134,7 @@ class BaseStrategy:
                 
         # 2. Knows objects and not a Scout? Go to the nearest one
         elif agent.known_objects and agent.role != AgentRole.SCOUT:
-            agent.state = "FETCHING"
+            agent.state = AgentState.FETCHING
             path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
             if path: return path[0]
 
@@ -143,14 +143,14 @@ class BaseStrategy:
             # Filter last_known_others for Collectors
             collectors = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COLLECTOR]
             if collectors:
-                agent.state = "RENDEZVOUS"
+                agent.state = AgentState.RENDEZVOUS
                 collector_positions = [c["pos"] for c in collectors]
                 # Find nearest collector position to the agent
                 nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
                 path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
                 if path: return path[0]
             
-        agent.state = "EXPLORING"
+        agent.state = AgentState.EXPLORING
         return None
 
     def get_frontier_cells(self, agent: Agent) -> List[Tuple[int, int]]:
@@ -210,7 +210,7 @@ class BaseStrategy:
                 score += 3 # Soft repulsion
                 
             # EXPLORATION OPTIMIZATION: Avoid warehouses unless necessary
-            if agent.state == "EXPLORING":
+            if agent.state == AgentState.EXPLORING:
                 cell_type = agent.local_map[move[0], move[1]]
                 if cell_type in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
                     score += 15 # High penalty for entering warehouses while exploring

@@ -1,7 +1,7 @@
 from __future__ import annotations
 import numpy as np
 from typing import Tuple, List, Set, Dict, Optional, Any, TYPE_CHECKING
-from .enums import AgentRole, CellType
+from .enums import AgentRole, CellType, AgentState
 from .utils import get_visible_cells, manhattan_distance
 
 if TYPE_CHECKING:
@@ -20,17 +20,16 @@ class Agent:
     ):
         self.id: int = agent_id
         self.pos: Tuple[int, int] = (0, 0)
-        self.battery: int = battery
+        self._role: Optional[AgentRole] = role
+        self._state: AgentState = AgentState.EXPLORING 
+        self._battery: int = battery
         self.vision_range: int = vision_range
         self.comm_range: int = comm_range
         
         self.carrying_object: bool = False
         self.is_active: bool = True
         self.is_connected: bool = False
-        self.nearby_agents: List[Tuple[int, int]] = [] # List of positions of other agents
-        
-        self.role: Optional[AgentRole] = role
-        self.state: str = "EXPLORING" 
+        self.nearby_agents: List[Tuple[int, int]] = [] 
         
         # Local map: -1 indicates 'unknown'
         self.local_map: np.ndarray = np.full((env_size, env_size), -1, dtype=int)
@@ -53,8 +52,28 @@ class Agent:
     def set_strategy(self, strategy: BaseStrategy) -> None:
         self.strategy = strategy
 
+    @property
+    def state(self) -> AgentState:
+        return self._state
+
+    @state.setter
+    def state(self, value: AgentState) -> None:
+        self._state = value
+
+    @property
+    def role(self) -> AgentRole:
+        return self._role
+
+    @property
+    def battery(self) -> int:
+        return self._battery
+
     def __repr__(self) -> str:
-        return f"Agent(id={self.id}, pos={self.pos}, battery={self.battery}, role={self.role}, state={self.state})"
+        return (
+            f"Agent(id={self.id}, pos={self.pos}, "
+            f"battery={self._battery}, role={self._role.value if self._role else 'None'}, "
+            f"state={self._state.value})"
+        )
 
     def sense(self, env: Environment) -> None:
         if not self.is_active:
@@ -143,14 +162,14 @@ class Agent:
         if not self.carrying_object and env.has_object(self.pos) and self.role != AgentRole.SCOUT:
             env.remove_object(self.pos)
             self.carrying_object = True
-            self.state = "DELIVERING"
+            self.state = AgentState.DELIVERING
             self.known_objects.discard(self.pos)  # discard is safe even if not present
 
     def _try_deliver(self, env: Environment) -> None:
         """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
         if self.carrying_object and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
             self.carrying_object = False
-            self.state = "EXITING"  # Immediately switch state to exit the warehouse
+            self.state = AgentState.EXITING  # Immediately switch state to exit the warehouse
 
     def _update_state(self, env: Environment) -> None:
         """
@@ -159,14 +178,14 @@ class Agent:
         follows the EXITING path through the exit cell (type 4) before exploring again.
         """
         cell_type = env.get_cell_type(self.pos)
-        if not self.carrying_object and self.state in ["EXITING", "DELIVERING", "FETCHING"] and cell_type == CellType.CORRIDOR:
-            self.state = "EXPLORING"
+        if not self.carrying_object and self.state in [AgentState.EXITING, AgentState.DELIVERING, AgentState.FETCHING] and cell_type == CellType.CORRIDOR:
+            self.state = AgentState.EXPLORING
             self.current_target = None  # Forces re-selection of exploration target
 
     def _consume_energy(self) -> None:
         """Decrements battery by 1 and deactivates the agent if it reaches zero."""
-        self.battery -= 1
-        if self.battery <= 0:
+        self._battery -= 1
+        if self._battery <= 0:
             self.is_active = False
 
     def validate_known_objects(self, env: Environment) -> None:

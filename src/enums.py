@@ -13,3 +13,10 @@ class CellType(IntEnum):
 class AgentRole(str, Enum):
     SCOUT = "Scout"
     COLLECTOR = "Collector"
+
+class AgentState(str, Enum):
+    EXPLORING  = "EXPLORING"
+    FETCHING   = "FETCHING"
+    DELIVERING = "DELIVERING"
+    EXITING    = "EXITING"
+    RENDEZVOUS = "RENDEZVOUS"
