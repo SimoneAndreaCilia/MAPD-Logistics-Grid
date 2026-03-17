@@ -338,7 +338,7 @@ class BaseStrategy:
                         if agent.local_map[nr, nc] == -1:
                             potential += 1
                 
-                # TARGET AVOIDANCE: Penalize если target overlaps with someone else's target
+                # TARGET AVOIDANCE: Penalize if target overlaps with someone else's target
                 avoidance_penalty = 0
                 for other_id, other_data in agent.last_known_others.items():
                     if isinstance(other_data, dict) and other_data.get("target") == f:
