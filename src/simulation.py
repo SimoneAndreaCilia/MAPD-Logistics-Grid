@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from .environment import Environment
 
 class Simulation:
-    def __init__(self, env: Environment, agents: List[Agent], max_ticks: int = 750):
+    def __init__(self, env: Environment, agents: List[Agent], max_ticks: int):
         self.env: Environment = env
         self.agents: List[Agent] = agents
         self.max_ticks: int = max_ticks
