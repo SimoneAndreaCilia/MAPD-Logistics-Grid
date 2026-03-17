@@ -78,6 +78,7 @@ class Simulation:
                 "pos": a.pos,
                 "battery": a.battery,
                 "carrying_object": a.carrying_object,
+                "role": a.role.value,
                 "active": a.is_active
             })
         self.logger.add_tick_state(self.current_tick, agents_data, self.score, objects_left)
