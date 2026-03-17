@@ -134,7 +134,7 @@ class Agent:
         if self.current_target == self.pos:
             self.current_target = None
 
-        self._move_to(next_pos)
+        self._move_to(next_pos, env)
         self._try_pickup(env)
         self._try_deliver(env)
         self._update_state(env)
@@ -146,9 +146,9 @@ class Agent:
     # Private helpers — each with a single, well-defined responsibility
     # ------------------------------------------------------------------
 
-    def _move_to(self, next_pos: Optional[Tuple[int, int]]) -> None:
-        """Updates the agent's position if next_pos is valid and different from the current one."""
-        if next_pos and next_pos != self.pos:
+    def _move_to(self, next_pos: Optional[Tuple[int, int]], env: Environment) -> None:
+        """Updates the agent's position if next_pos is valid, passable, and different from the current one."""
+        if next_pos and next_pos != self.pos and env.is_passable(next_pos):
             self.last_pos = self.pos
             self.pos = next_pos
             self.visited_cells[self.pos] = self.visited_cells.get(self.pos, 0) + 1

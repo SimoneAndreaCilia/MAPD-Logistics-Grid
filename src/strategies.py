@@ -261,7 +261,7 @@ class BaseStrategy:
             # Don't path if already close
             if abs(agent.pos[0] - target_pos[0]) + abs(agent.pos[1] - target_pos[1]) > agent.comm_range:
                 # Use strictly_known=True for safer coordination pathfinding
-                path = a_star_path(agent.local_map, agent.pos, [target_pos], [CellType.CORRIDOR, CellType.WALL, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=True)
+                path = a_star_path(agent.local_map, agent.pos, [target_pos], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=True)
                 if path: return path[0]
         return None
 
