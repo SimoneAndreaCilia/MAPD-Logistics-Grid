@@ -13,9 +13,9 @@ class Agent:
         self, 
         agent_id: int, 
         env_size: int, 
-        vision_range: int = 2, 
-        comm_range: int = 2, 
-        battery: int = 100, 
+        battery: int, 
+        vision_range: int, 
+        comm_range: int, 
         role: Optional[AgentRole] = None
     ):
         self.id: int = agent_id

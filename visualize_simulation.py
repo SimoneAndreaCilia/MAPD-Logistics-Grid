@@ -76,7 +76,8 @@ class SimulationVisualizer:
             # Dynamic agent initialization
             first_frame_agents = self.log_data[0].get('agents', [])
             self.num_agents = len(first_frame_agents)
-            self.max_batteries = [agent.get('battery', 100) for agent in first_frame_agents]
+            # Use the battery value from the first frame as the maximum capacity
+            self.max_batteries = [agent.get('battery', 150) for agent in first_frame_agents]
             
         except (FileNotFoundError, json.JSONDecodeError, KeyError, ValueError) as e:
             print(f"Critical error loading simulation data: {e}")

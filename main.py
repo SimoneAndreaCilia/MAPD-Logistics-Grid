@@ -9,6 +9,7 @@ from src.agent import Agent
 from src.enums import AgentRole
 from src.strategies import FrontierStrategy, RandomTargetStrategy
 from src.simulation import Simulation
+from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE
 
 # Pipeline components
 from analyze_logs import analyze_log
@@ -36,18 +37,24 @@ def main():
     
     print(">>> Agent Initialization...")
     agents = []
-    # Generate 5 agents
-    for i in range(5):
-        # Battery is 150 because max_ticks is 750
+    # Generate agents based on configuration
+    for i in range(NUM_AGENTS):
         role = AgentRole.COLLECTOR
         strategy = FrontierStrategy()
         
-        agent = Agent(agent_id=i, env_size=env.grid_size, vision_range=3, comm_range=2, battery=150, role=role)
+        agent = Agent(
+            agent_id=i, 
+            env_size=env.grid_size, 
+            vision_range=VISION_RANGE, 
+            comm_range=COMM_RANGE, 
+            battery=BATTERY_CAPACITY, 
+            role=role
+        )
         agent.set_strategy(strategy)
         agents.append(agent)
         
     print(">>> Simulation Start...")
-    sim = Simulation(env, agents, max_ticks=750)
+    sim = Simulation(env, agents, max_ticks=MAX_TICKS)
     sim.run(log_path=log_path)
     print(">>> Simulation Finished.")
 
