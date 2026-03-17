@@ -38,18 +38,12 @@ def main():
     agents = []
     # Generate 5 agents
     for i in range(5):
-        # Battery is 150 because max_ticks is 750 (1/5 ratio as requested)
-        # Assign roles: first 3 are Collectors (Frontier), last 2 are Scouts (Random)
-        if i < 3:
-            role = AgentRole.COLLECTOR
-        else:
-            role = AgentRole.SCOUT
+        # Battery is 150 because max_ticks is 750
+        role = AgentRole.COLLECTOR
+        strategy = FrontierStrategy()
+        
         agent = Agent(agent_id=i, env_size=env.grid_size, vision_range=3, comm_range=2, battery=150, role=role)
-        # Assign strategies: 3 frontier explorers, 2 random guided movements
-        if i < 3:
-            agent.set_strategy(FrontierStrategy())
-        else:
-            agent.set_strategy(RandomTargetStrategy())
+        agent.set_strategy(strategy)
         agents.append(agent)
         
     print(">>> Simulation Start...")

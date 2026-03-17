@@ -265,6 +265,101 @@ class BaseStrategy:
                 if path: return path[0]
         return None
 
+    def get_frontier_move(self, agent: Agent) -> Optional[Tuple[int, int]]:
+        """
+        Shared logic for finding and moving towards a frontier cell.
+        Manages target persistence, quadrant bias, and potential-based scoring.
+        """
+        frontier = self.get_frontier_cells(agent)
+        
+        # 1. Target persistence & VALIDATION:
+        # If we have a target, check if it's still a frontier (has unknown neighbors)
+        if agent.current_target:
+            is_valid = False
+            if agent.pos != agent.current_target and agent.local_map[agent.current_target] != CellType.WALL:
+                # Check if it still has unknown neighbors
+                r, c = agent.current_target
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < agent.local_map.shape[0] and 0 <= nc < agent.local_map.shape[1]:
+                        if agent.local_map[nr, nc] == -1: # Still unknown!
+                            is_valid = True
+                            break
+            
+            if not is_valid:
+                agent.current_target = None
+                
+        # 2. Select new target if needed
+        if not agent.current_target and frontier:
+            grid_h, grid_w = agent.local_map.shape
+            quadrant_targets = [
+                (0, grid_w-1),   # 0: Top-Right
+                (grid_h-1, 0),   # 1: Bottom-Left
+                (grid_h-1, grid_w-1), # 2: Bottom-Right
+                (0, 0),          # 3: Top-Left
+                (grid_h-1, grid_w//2) # 4: Mid-Bottom
+            ]
+            
+            # DYNAMIC QUADRANT: Check if our assigned quadrant is still "dark"
+            # If not, pick the darket one.
+            assigned_q_idx = agent.id % 5
+            assigned_q = quadrant_targets[assigned_q_idx]
+            
+            # Simple heuristic: check unknown cells in the 4 corners
+            # (only every 10 ticks to save CPU, or just when picking new target)
+            unknown_counts = []
+            q_bounds = [
+                (0, grid_h//2, grid_w//2, grid_w), # TR
+                (grid_h//2, grid_h, 0, grid_w//2), # BL
+                (grid_h//2, grid_h, grid_w//2, grid_w), # BR
+                (0, grid_h//2, 0, grid_w//2), # TL
+            ]
+            for r0, r1, c0, c1 in q_bounds:
+                unknown_counts.append(np.count_nonzero(agent.local_map[r0:r1, c0:c1] == -1))
+            
+            # If our assigned quadrant is TR/BL/BR/TL and it has few unknowns, switch!
+            if assigned_q_idx < 4 and unknown_counts[assigned_q_idx] < 5:
+                best_q_idx = np.argmax(unknown_counts)
+                target_q = quadrant_targets[best_q_idx]
+            else:
+                target_q = assigned_q
+            
+            def score_frontier(f):
+                # Distance to agent
+                dist = abs(f[0]-agent.pos[0]) + abs(f[1]-agent.pos[1])
+                # Distance to assigned quadrant
+                q_dist = abs(f[0]-target_q[0]) + abs(f[1]-target_q[1])
+                
+                # DISCOVERY POTENTIAL: count unknown neighbors
+                potential = 0
+                for dr, dc in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                    nr, nc = f[0] + dr, f[1] + dc
+                    if 0 <= nr < grid_h and 0 <= nc < grid_w:
+                        if agent.local_map[nr, nc] == -1:
+                            potential += 1
+                
+                # TARGET AVOIDANCE: Penalize если target overlaps with someone else's target
+                avoidance_penalty = 0
+                for other_id, other_data in agent.last_known_others.items():
+                    if isinstance(other_data, dict) and other_data.get("target") == f:
+                        avoidance_penalty += 30 # Large penalty to push agent elsewhere
+                
+                # Formula: lower is better. 
+                # We penalize distance but reward potential (potential is 1-4, so we give it weight)
+                return dist + (q_dist * 0.3) - (potential * 2) + avoidance_penalty + random.uniform(0, 2)
+            
+            frontier.sort(key=score_frontier)
+            agent.current_target = frontier[0]
+            
+        # 3. Path to target
+        if agent.current_target:
+            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+            if path:
+                return path[0]
+            else:
+                agent.current_target = None
+        return None
+
 class RandomTargetStrategy(BaseStrategy):
     def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
         # Priorities (Package/Objects)
@@ -276,8 +371,8 @@ class RandomTargetStrategy(BaseStrategy):
             move = self.get_coordination_move(agent)
             if move: return move
             
-        # Fallback (Heatmap exploration)
-        return self.get_exploration_move(agent)
+        # Fallback (Frontier exploration)
+        return self.get_frontier_move(agent)
 
 class FrontierStrategy(BaseStrategy):
     def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
@@ -285,53 +380,5 @@ class FrontierStrategy(BaseStrategy):
         move = self.get_priority_move(agent)
         if move: return move
         
-        # Target persistence: keep current target until reached
-        frontier = self.get_frontier_cells(agent)
-        
-        if agent.current_target:
-            # We only clear the target if we reached it.
-            # (decide_and_move also clears it if path fails or reached)
-            if agent.pos == agent.current_target:
-                agent.current_target = None
-            # Or if it somehow became a wall (1) which shouldn't happen for frontiers
-            elif agent.local_map[agent.current_target] == CellType.WALL:
-                agent.current_target = None
-                
-        if not agent.current_target and frontier:
-            # Quadrant Bias: Target frontiers closer to the assigned quadrant corner
-            grid_h, grid_w = agent.local_map.shape
-            quadrant_targets = [
-                (0, grid_w-1),   # 0: Top-Right
-                (grid_h-1, 0),   # 1: Bottom-Left
-                (grid_h-1, grid_w-1), # 2: Bottom-Right
-                (0, 0),          # 3: Top-Left
-                (grid_h-1, grid_w//2) # 4: Mid-Bottom
-            ]
-            target_q = quadrant_targets[agent.id % 5]
-            
-            # Sort frontiers by Weighted Distance (Real Distance + Quadrant Bias + Stochastics)
-            def score_frontier(f):
-                dist = abs(f[0]-agent.pos[0]) + abs(f[1]-agent.pos[1])
-                q_dist = abs(f[0]-target_q[0]) + abs(f[1]-target_q[1])
-                # Small random factor to prevent agents from choosing the same cell
-                return dist + (q_dist * 0.5) + random.uniform(0, 5)
-            
-            frontier.sort(key=score_frontier)
-            agent.current_target = frontier[0]
-            
-        if agent.current_target:
-            # Try to reach the target using A* with visited penalization
-            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=False)
-            
-            if path:
-                return path[0]
-            else:
-                agent.current_target = None # Path unreachable, reset
-            
-        # Coordination (Map Sharing) - lower priority than frontier exploration
-        if random.random() < 0.1: 
-            move = self.get_coordination_move(agent)
-            if move: return move
-            
-        # Fallback (Heatmap exploration)
-        return self.get_exploration_move(agent)
+        # Fallback to shared frontier logic
+        return self.get_frontier_move(agent)
