@@ -66,7 +66,9 @@ class Simulation:
                 
                 self.log_state(objects_left)
                 
-                if objects_left == 0 or self.current_tick >= self.max_ticks:
+                # Termination check: mission ends only if NO objects remain on ground AND NO agent is carrying one
+                agents_carrying = any(a.carrying_object for a in self.agents)
+                if (objects_left == 0 and not agents_carrying) or self.current_tick >= self.max_ticks:
                     self.is_done = True
                     break
                     
