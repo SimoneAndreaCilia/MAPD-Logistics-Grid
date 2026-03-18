@@ -6,6 +6,7 @@ import matplotlib.patches as patches
 import numpy as np
 import os
 from src.enums import CellType, AgentRole
+from src.config import AGENT_STRATEGIES
 
 # Visualization Constants
 VIS_CONFIG = {
@@ -277,9 +278,11 @@ class SimulationVisualizer:
                 carrying_str = "Unknown"
                 
             delivered = self.delivery_counts[self.current_frame][self.selected_agent_idx]
+            strategy_name = AGENT_STRATEGIES.get(self.selected_agent_idx, "Unknown")
             
             info_str = (f"Selected: Agent {self.selected_agent_idx}\n"
                         f"Role: {role}\n"
+                        f"Strategy: {strategy_name}\n"
                         f"Battery: {agent.get('battery', 0)}/{self.max_batteries[self.selected_agent_idx]}\n"
                         f"Carrying: {carrying_str}\n"
                         f"Delivered: {delivered}\n"
