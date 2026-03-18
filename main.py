@@ -9,7 +9,7 @@ from src.agent import Agent
 from src.enums import AgentRole
 from src.strategies import FrontierStrategy, RandomTargetStrategy, WallFollowerStrategy, SpiralStrategy, GreedyStrategy
 from src.simulation import Simulation
-from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE, MAP_NAME, AGENT_STRATEGIES
+from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE, MAP_NAME, AGENT_STRATEGIES, AGENT_ROLES
 
 # Pipeline components
 from analyze_logs import analyze_log
@@ -38,18 +38,19 @@ def main():
     print(">>> Agent Initialization...")
     agents = []
     
-    def get_strategy(name):
-        if name == "WallFollower": return WallFollowerStrategy()
-        elif name == "Spiral": return SpiralStrategy()
-        elif name == "Greedy": return GreedyStrategy()
-        elif name == "RandomTarget": return RandomTargetStrategy()
-        else: return FrontierStrategy()
-        
+    strategy_factory = {
+        "Frontier": FrontierStrategy,
+        "WallFollower": WallFollowerStrategy,
+        "Spiral": SpiralStrategy,
+        "Greedy": GreedyStrategy,
+        "RandomTarget": RandomTargetStrategy
+    }
+    
     # Generate agents based on configuration
     for i in range(NUM_AGENTS):
-        role = AgentRole.COLLECTOR
-        strategy_name = AGENT_STRATEGIES.get(i % len(AGENT_STRATEGIES), "Frontier")
-        strategy = get_strategy(strategy_name)
+        role = AGENT_ROLES.get(i, AgentRole.COLLECTOR)
+        strategy_name = AGENT_STRATEGIES.get(i, "Frontier")
+        strategy_class = strategy_factory.get(strategy_name, FrontierStrategy)
         
         agent = Agent(
             agent_id=i, 
@@ -59,7 +60,7 @@ def main():
             battery=BATTERY_CAPACITY, 
             role=role
         )
-        agent.set_strategy(strategy)
+        agent.set_strategy(strategy_class())
         agents.append(agent)
         
     print(">>> Simulation Start...")
