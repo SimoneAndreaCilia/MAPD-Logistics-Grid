@@ -6,6 +6,7 @@ import matplotlib.patches as patches
 import numpy as np
 import os
 from src.enums import CellType, AgentRole
+from src.config import AGENT_STRATEGIES
 
 # Visualization Constants
 VIS_CONFIG = {
@@ -135,7 +136,7 @@ class SimulationVisualizer:
         self.tick_text = self.fig.text(0.05, 0.85, '', fontweight='bold', fontsize=14)
         self.score_text = self.fig.text(0.05, 0.78, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.5))
         self.objs_text = self.fig.text(0.05, 0.73, '', fontsize=11, bbox=dict(facecolor=VIS_CONFIG['colors']['object'], alpha=0.3))
-        self.agent_info_text = self.fig.text(0.05, 0.60, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
+        self.agent_info_text = self.fig.text(0.05, 0.57, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
 
     def _setup_widgets(self):
         ax_slider = plt.axes([0.15, 0.08, 0.7, 0.03])
@@ -277,9 +278,11 @@ class SimulationVisualizer:
                 carrying_str = "Unknown"
                 
             delivered = self.delivery_counts[self.current_frame][self.selected_agent_idx]
+            strategy_name = AGENT_STRATEGIES.get(self.selected_agent_idx, "Unknown")
             
             info_str = (f"Selected: Agent {self.selected_agent_idx}\n"
                         f"Role: {role}\n"
+                        f"Strategy: {strategy_name}\n"
                         f"Battery: {agent.get('battery', 0)}/{self.max_batteries[self.selected_agent_idx]}\n"
                         f"Carrying: {carrying_str}\n"
                         f"Delivered: {delivered}\n"

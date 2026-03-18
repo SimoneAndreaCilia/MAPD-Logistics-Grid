@@ -382,3 +382,86 @@ class FrontierStrategy(BaseStrategy):
         
         # Fallback to shared frontier logic
         return self.get_frontier_move(agent)
+
+class WallFollowerStrategy(BaseStrategy):
+    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
+        move = self.get_priority_move(agent)
+        if move: return move
+        
+        neighbors = get_neighbors(agent.pos, agent.local_map.shape)
+        valid_moves = [n for n in neighbors if agent.local_map[n[0], n[1]] in [CellType.UNKNOWN, CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]]
+        
+        if not valid_moves:
+            return self.get_frontier_move(agent)
+            
+        unknown_adjacent = [m for m in valid_moves if agent.local_map[m[0], m[1]] == -1]
+        if unknown_adjacent:
+            return random.choice(unknown_adjacent)
+
+        def is_adjacent_to_wall(pos):
+             for r, c in [(-1,0), (1,0), (0,-1), (0,1)]:
+                 nr, nc = pos[0]+r, pos[1]+c
+                 if 0 <= nr < agent.local_map.shape[0] and 0 <= nc < agent.local_map.shape[1]:
+                     if agent.local_map[nr, nc] == CellType.WALL:
+                         return True
+             return False
+             
+        def get_score(m):
+            score = agent.visited_cells.get(m, 0) * 10
+            if m == getattr(agent, 'last_pos', None):
+                score += 50
+            if not is_adjacent_to_wall(m):
+                score += 5
+            return score
+            
+        min_score = min(get_score(m) for m in valid_moves)
+        best_candidates = [m for m in valid_moves if get_score(m) <= min_score + 0.5]
+        
+        if best_candidates:
+            return random.choice(best_candidates)
+            
+        return self.get_frontier_move(agent)
+
+class SpiralStrategy(BaseStrategy):
+    def __init__(self):
+        super().__init__()
+        self.directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
+        self.current_dir_idx = 0
+
+    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
+        move = self.get_priority_move(agent)
+        if move: return move
+        
+        local_shape = agent.local_map.shape
+        def is_valid(m):
+            if 0 <= m[0] < local_shape[0] and 0 <= m[1] < local_shape[1]:
+                return agent.local_map[m[0], m[1]] in [CellType.UNKNOWN, CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]
+            return False
+            
+        # Try current direction then turn right
+        for _ in range(4):
+            dr, dc = self.directions[self.current_dir_idx]
+            forward_move = (agent.pos[0] + dr, agent.pos[1] + dc)
+            if is_valid(forward_move) and agent.visited_cells.get(forward_move, 0) == 0:
+                 return forward_move
+            self.current_dir_idx = (self.current_dir_idx + 1) % 4
+            
+        # Fallback if stuck
+        return self.get_frontier_move(agent)
+
+class GreedyStrategy(BaseStrategy):
+    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
+        move = self.get_priority_move(agent)
+        if move: return move
+        
+        frontier = self.get_frontier_cells(agent)
+        if frontier:
+            def dist(f):
+                return abs(f[0] - agent.pos[0]) + abs(f[1] - agent.pos[1])
+            frontier.sort(key=dist)
+            agent.current_target = frontier[0]
+            
+            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+            if path: return path[0]
+            
+        return self.get_exploration_move(agent)
