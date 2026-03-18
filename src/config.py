@@ -3,6 +3,9 @@
 # Total number of ticks for the simulation
 MAX_TICKS = 500
 
+# Map to use (A, B, etc.)
+MAP_NAME = "B"
+
 # Number of agents in the swarm
 NUM_AGENTS = 5
 
