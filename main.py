@@ -9,7 +9,7 @@ from src.agent import Agent
 from src.enums import AgentRole
 from src.strategies import FrontierStrategy, RandomTargetStrategy
 from src.simulation import Simulation
-from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE
+from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE, MAP_NAME
 
 # Pipeline components
 from analyze_logs import analyze_log
@@ -17,13 +17,13 @@ from visualize_simulation import run_visualizer
 
 def main():
     base_path = os.path.dirname(os.path.abspath(__file__))
-    json_path = os.path.join(base_path, "data", "A.json")
-    log_path = os.path.join(base_path, "log_A.json")
+    json_path = os.path.join(base_path, "data", f"{MAP_NAME}.json")
+    log_path = os.path.join(base_path, f"log_{MAP_NAME}.json")
     
     if not os.path.exists(json_path):
         print(f"Error: The environment file {json_path} does not exist.")
         # Try finding it in parent dir
-        json_path_alt = os.path.join(base_path, "..", "A.json")
+        json_path_alt = os.path.join(base_path, "..", f"{MAP_NAME}.json")
         if os.path.exists(json_path_alt):
             print(f"Found in fallback: {json_path_alt}")
             json_path = json_path_alt
