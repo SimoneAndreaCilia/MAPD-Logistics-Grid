@@ -136,7 +136,7 @@ class SimulationVisualizer:
         self.tick_text = self.fig.text(0.05, 0.85, '', fontweight='bold', fontsize=14)
         self.score_text = self.fig.text(0.05, 0.78, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.5))
         self.objs_text = self.fig.text(0.05, 0.73, '', fontsize=11, bbox=dict(facecolor=VIS_CONFIG['colors']['object'], alpha=0.3))
-        self.agent_info_text = self.fig.text(0.05, 0.60, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
+        self.agent_info_text = self.fig.text(0.05, 0.57, '', fontsize=11, bbox=dict(facecolor='white', alpha=0.0))
 
     def _setup_widgets(self):
         ax_slider = plt.axes([0.15, 0.08, 0.7, 0.03])
