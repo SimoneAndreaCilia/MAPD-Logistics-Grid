@@ -7,9 +7,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from src.environment import Environment
 from src.agent import Agent
 from src.enums import AgentRole
-from src.strategies import FrontierStrategy, RandomTargetStrategy
+from src.strategies import FrontierStrategy, RandomTargetStrategy, WallFollowerStrategy, SpiralStrategy, GreedyStrategy
 from src.simulation import Simulation
-from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE, MAP_NAME
+from src.config import MAX_TICKS, NUM_AGENTS, BATTERY_CAPACITY, VISION_RANGE, COMM_RANGE, MAP_NAME, AGENT_STRATEGIES
 
 # Pipeline components
 from analyze_logs import analyze_log
@@ -37,10 +37,19 @@ def main():
     
     print(">>> Agent Initialization...")
     agents = []
+    
+    def get_strategy(name):
+        if name == "WallFollower": return WallFollowerStrategy()
+        elif name == "Spiral": return SpiralStrategy()
+        elif name == "Greedy": return GreedyStrategy()
+        elif name == "RandomTarget": return RandomTargetStrategy()
+        else: return FrontierStrategy()
+        
     # Generate agents based on configuration
     for i in range(NUM_AGENTS):
         role = AgentRole.COLLECTOR
-        strategy = FrontierStrategy()
+        strategy_name = AGENT_STRATEGIES.get(i % len(AGENT_STRATEGIES), "Frontier")
+        strategy = get_strategy(strategy_name)
         
         agent = Agent(
             agent_id=i, 

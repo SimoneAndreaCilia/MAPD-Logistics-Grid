@@ -9,6 +9,15 @@ MAP_NAME = "B"
 # Number of agents in the swarm
 NUM_AGENTS = 5
 
+# Agent Strategy Mapping
+AGENT_STRATEGIES = {
+    0: "Frontier",
+    1: "WallFollower",
+    2: "Spiral",
+    3: "Greedy",
+    4: "RandomTarget"
+}
+
 # Battery capacity per agent (scaled with MAX_TICKS)
 # Formula: Battery = MAX_TICKS / NUM_AGENTS
 BATTERY_CAPACITY = MAX_TICKS // NUM_AGENTS
