@@ -20,3 +20,5 @@ class AgentState(str, Enum):
     DELIVERING = "DELIVERING"
     EXITING    = "EXITING"
     RENDEZVOUS = "RENDEZVOUS"
+    RETURNING  = "RETURNING"
+    PARKED     = "PARKED"

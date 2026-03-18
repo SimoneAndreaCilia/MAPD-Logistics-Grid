@@ -94,9 +94,20 @@ class BaseStrategy:
     def get_priority_move(self, agent: Agent) -> Optional[Tuple[int, int]]:
         """
         Standard priority logic for all strategies:
+        0. If battery is low and not carrying an object, return to nearest warehouse.
         1. If carrying an object, go to nearest warehouse.
         2. If knows an object and is Collector, go to it (FETCHING).
         """
+        from .config import BATTERY_LOW_THRESHOLD
+
+        # 0. Low Battery? Return to warehouse
+        if agent.battery <= BATTERY_LOW_THRESHOLD and agent.state != AgentState.PARKED and not agent.carrying_object:
+            agent.state = AgentState.RETURNING
+            warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
+            if warehouse_entrances:
+                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+                if path: return path[0]
+
         # 1. Carrying an object? Return to warehouse ENTRANCE (3)
         if agent.carrying_object:
             agent.state = AgentState.DELIVERING
@@ -109,6 +120,9 @@ class BaseStrategy:
                 
         # 1.5. Inside a warehouse (2, 3, 4) without an object? Head out!
         elif not agent.carrying_object and agent.local_map[agent.pos] in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
+             if agent.state == AgentState.RETURNING:
+                 return None # Stay inside and wait to be parked
+
              agent.state = AgentState.EXITING
              current_type = agent.local_map[agent.pos]
              

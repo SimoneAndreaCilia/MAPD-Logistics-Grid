@@ -27,9 +27,9 @@ AGENT_ROLES = {
     4: AgentRole.COLLECTOR
 }
 
-# Battery capacity per agent (scaled with MAX_TICKS)
-# Formula: Battery = MAX_TICKS / NUM_AGENTS
-BATTERY_CAPACITY = MAX_TICKS // NUM_AGENTS
+# Battery capacity per agent
+BATTERY_CAPACITY = 500
+BATTERY_LOW_THRESHOLD = 100
 
 # Visualization Settings
 GRID_SIZE = 25

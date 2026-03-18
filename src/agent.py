@@ -137,6 +137,7 @@ class Agent:
         self._move_to(next_pos, env)
         self._try_pickup(env)
         self._try_deliver(env)
+        self._try_park(env)
         self._update_state(env)
         self._consume_energy()
 
@@ -169,7 +170,18 @@ class Agent:
         """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
         if self.carrying_object and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
             self.carrying_object = False
-            self.state = AgentState.EXITING  # Immediately switch state to exit the warehouse
+            from .config import BATTERY_LOW_THRESHOLD
+            if self.battery <= BATTERY_LOW_THRESHOLD:
+                self.state = AgentState.RETURNING
+            else:
+                self.state = AgentState.EXITING  # Immediately switch state to exit the warehouse
+
+    def _try_park(self, env: Environment) -> None:
+        """Parks the agent if its battery is low and it is inside a warehouse."""
+        from .config import BATTERY_LOW_THRESHOLD
+        if self.battery <= BATTERY_LOW_THRESHOLD and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
+            self.is_active = False
+            self.state = AgentState.PARKED
 
     def _update_state(self, env: Environment) -> None:
         """
