@@ -158,7 +158,8 @@ class Agent:
         self._update_state(env)
         self._consume_energy()
 
-        return True
+        # Ritorna False se l'agente non sta consumando un turno effettivo (come un Coordinator in RELAYING)
+        return self.state != AgentState.RELAYING
 
     # ------------------------------------------------------------------
     # Private helpers — each with a single, well-defined responsibility
