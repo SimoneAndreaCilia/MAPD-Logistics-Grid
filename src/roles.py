@@ -77,6 +77,19 @@ class ScoutRole(BaseRole):
                 collector_positions = [c["pos"] for c in collectors]
                 nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
                 return [nearest_collector_pos]
+            
+            # Push logic: If no collectors, try coordinator
+            coordinators = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COORDINATOR]
+            if coordinators:
+                coord_positions = [c["pos"] for c in coordinators]
+                nearest_coord = min(coord_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
+                dist_to_coord = abs(nearest_coord[0]-agent.pos[0]) + abs(nearest_coord[1]-agent.pos[1])
+                
+                # Prevenzione stalli (Scout): ignora se gia' nel raggio (vicino)
+                if dist_to_coord > agent.comm_range:
+                    agent.state = AgentState.RENDEZVOUS
+                    return [nearest_coord]
+                    
         return None
 
 
@@ -93,6 +106,19 @@ class CollectorRole(BaseRole):
         if agent.known_objects:
             agent.state = AgentState.FETCHING
             return list(agent.known_objects)
+        
+        # Pull logic: If no known objects (completely out of work), ask Coordinator
+        coordinators = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COORDINATOR]
+        if coordinators:
+            coord_positions = [c["pos"] for c in coordinators]
+            nearest_coord = min(coord_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
+            dist_to_coord = abs(nearest_coord[0]-agent.pos[0]) + abs(nearest_coord[1]-agent.pos[1])
+            
+            # Prevenzione stalli (Collector): ignora se vicino al Coordinator, evitando loop infiniti
+            if dist_to_coord > agent.comm_range + 2:
+                agent.state = AgentState.RENDEZVOUS
+                return [nearest_coord]
+
         return None
 
 

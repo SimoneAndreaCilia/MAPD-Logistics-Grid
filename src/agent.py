@@ -120,11 +120,11 @@ class Agent:
         a.known_objects = shared_objects.copy()
         b.known_objects = shared_objects.copy()
 
-        # Scout → Collector handoff: once objects are shared, the Scout clears its list
+        # Scout → Collector/Coordinator handoff: once objects are shared, the Scout clears its list
         # so it exits RENDEZVOUS and goes back to exploring.
-        if a.role == AgentRole.SCOUT and b.role == AgentRole.COLLECTOR:
+        if a.role == AgentRole.SCOUT and b.role in [AgentRole.COLLECTOR, AgentRole.COORDINATOR]:
             a.known_objects.clear()
-        elif b.role == AgentRole.SCOUT and a.role == AgentRole.COLLECTOR:
+        elif b.role == AgentRole.SCOUT and a.role in [AgentRole.COLLECTOR, AgentRole.COORDINATOR]:
             b.known_objects.clear()
 
         # Update each agent's last-known metadata about the other
