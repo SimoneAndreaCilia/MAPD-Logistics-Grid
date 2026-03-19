@@ -88,83 +88,22 @@ def a_star_path(
     return None
 
 class BaseStrategy:
-    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
+    def get_next_move(self, agent: Agent, env: Environment, targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
         raise NotImplementedError
-        
-    def get_priority_move(self, agent: Agent) -> Optional[Tuple[int, int]]:
-        """
-        Standard priority logic for all strategies:
-        0. If battery is low and not carrying an object, return to nearest warehouse.
-        1. If carrying an object, go to nearest warehouse.
-        2. If knows an object and is Collector, go to it (FETCHING).
-        """
-        from .config import BATTERY_LOW_THRESHOLD
 
-        # 0. Low Battery? Return to warehouse
-        if agent.battery <= BATTERY_LOW_THRESHOLD and agent.state != AgentState.PARKED and not agent.carrying_object:
-            agent.state = AgentState.RETURNING
-            warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
-            if warehouse_entrances:
-                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
-                if path: return path[0]
-
-        # 1. Carrying an object? Return to warehouse ENTRANCE (3)
-        if agent.carrying_object:
-            agent.state = AgentState.DELIVERING
-            # Target ONLY entrance cells (3)
-            warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
-            if warehouse_entrances:
-                # Include 2 (warehouse) in traversable_vals so agents can move inside if they are there
-                path = a_star_path(agent.local_map, agent.pos, warehouse_entrances, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
-                if path: return path[0]
-                
-        # 1.5. Inside a warehouse (2, 3, 4) without an object? Head out!
-        elif not agent.carrying_object and agent.local_map[agent.pos] in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
-             if agent.state == AgentState.RETURNING:
-                 return None # Stay inside and wait to be parked
-
-             agent.state = AgentState.EXITING
-             current_type = agent.local_map[agent.pos]
-             
-             if current_type == CellType.EXIT:
-                 # At the exit cell, target the nearest known corridor
-                 corridors = set(zip(*np.where(agent.local_map == CellType.CORRIDOR)))
-                 if corridors:
-                     # Allow moving from EXIT to CORRIDOR
-                     path = a_star_path(agent.local_map, agent.pos, corridors, [CellType.CORRIDOR, CellType.EXIT], visited_counts=agent.visited_cells)
-                     if path: return path[0]
-             else:
-                 # Inside the warehouse, target the nearest known exit cell (4)
-                 warehouse_exits = set(zip(*np.where(agent.local_map == CellType.EXIT)))
-                 if warehouse_exits:
-                     path = a_star_path(agent.local_map, agent.pos, warehouse_exits, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
-                     if path: return path[0]
-                 else:
-                     # If exit 4 is not yet known, fallback to any corridor 0
-                     corridors = set(zip(*np.where(agent.local_map == CellType.CORRIDOR)))
-                     if corridors:
-                         path = a_star_path(agent.local_map, agent.pos, corridors, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
-                         if path: return path[0]
-                
-        # 2. Knows objects and not a Scout? Go to the nearest one
-        elif agent.known_objects and agent.role != AgentRole.SCOUT:
-            agent.state = AgentState.FETCHING
-            path = a_star_path(agent.local_map, agent.pos, agent.known_objects, [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
-            if path: return path[0]
-
-        # 2.5. Scout knows objects? RENDEZVOUS with nearest Collector to share data
-        elif agent.known_objects and agent.role == AgentRole.SCOUT:
-            # Filter last_known_others for Collectors
-            collectors = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COLLECTOR]
-            if collectors:
-                agent.state = AgentState.RENDEZVOUS
-                collector_positions = [c["pos"] for c in collectors]
-                # Find nearest collector position to the agent
-                nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
-                path = a_star_path(agent.local_map, agent.pos, [nearest_collector_pos], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
-                if path: return path[0]
+    def path_to_targets(self, agent: Agent, targets: List[Tuple[int, int]]) -> Optional[Tuple[int, int]]:
+        """Wraps a_star_path to safely find the first step towards a set of targets."""
+        if not targets:
+            return None
             
-        agent.state = AgentState.EXPLORING
+        # If exiting from an exit cell, only allow exiting to corridors
+        if agent.state == AgentState.EXITING and agent.local_map[agent.pos] == CellType.EXIT:
+             path = a_star_path(agent.local_map, agent.pos, list(targets), [CellType.CORRIDOR, CellType.EXIT], visited_counts=agent.visited_cells)
+        else:
+             path = a_star_path(agent.local_map, agent.pos, list(targets), [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+             
+        if path:
+            return path[0]
         return None
 
     def get_frontier_cells(self, agent: Agent) -> List[Tuple[int, int]]:
@@ -375,10 +314,10 @@ class BaseStrategy:
         return None
 
 class RandomTargetStrategy(BaseStrategy):
-    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
-        # Priorities (Package/Objects)
-        move = self.get_priority_move(agent)
-        if move: return move
+    def get_next_move(self, agent: Agent, env: Environment, targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
+        if targets:
+            move = self.path_to_targets(agent, targets)
+            if move: return move
         
         # Coordination (Map Sharing)
         if random.random() < 0.3: # 30% chance to seek others if idle
@@ -389,18 +328,19 @@ class RandomTargetStrategy(BaseStrategy):
         return self.get_frontier_move(agent)
 
 class FrontierStrategy(BaseStrategy):
-    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
-        # Priorities (Package/Objects)
-        move = self.get_priority_move(agent)
-        if move: return move
+    def get_next_move(self, agent: Agent, env: Environment, targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
+        if targets:
+            move = self.path_to_targets(agent, targets)
+            if move: return move
         
         # Fallback to shared frontier logic
         return self.get_frontier_move(agent)
 
 class WallFollowerStrategy(BaseStrategy):
-    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
-        move = self.get_priority_move(agent)
-        if move: return move
+    def get_next_move(self, agent: Agent, env: Environment, targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
+        if targets:
+            move = self.path_to_targets(agent, targets)
+            if move: return move
         
         neighbors = get_neighbors(agent.pos, agent.local_map.shape)
         valid_moves = [n for n in neighbors if agent.local_map[n[0], n[1]] in [CellType.UNKNOWN, CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]]
@@ -442,9 +382,10 @@ class SpiralStrategy(BaseStrategy):
         self.directions = [(0, 1), (1, 0), (0, -1), (-1, 0)]
         self.current_dir_idx = 0
 
-    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
-        move = self.get_priority_move(agent)
-        if move: return move
+    def get_next_move(self, agent: Agent, env: Environment, targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
+        if targets:
+            move = self.path_to_targets(agent, targets)
+            if move: return move
         
         local_shape = agent.local_map.shape
         def is_valid(m):
@@ -464,9 +405,10 @@ class SpiralStrategy(BaseStrategy):
         return self.get_frontier_move(agent)
 
 class GreedyStrategy(BaseStrategy):
-    def get_next_move(self, agent: Agent, env: Environment) -> Optional[Tuple[int, int]]:
-        move = self.get_priority_move(agent)
-        if move: return move
+    def get_next_move(self, agent: Agent, env: Environment, targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
+        if targets:
+            move = self.path_to_targets(agent, targets)
+            if move: return move
         
         frontier = self.get_frontier_cells(agent)
         if frontier:

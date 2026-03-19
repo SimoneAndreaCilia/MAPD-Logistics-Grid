@@ -19,14 +19,10 @@ from src.strategies import BaseStrategy
 
 # Mock Strategy that returns a specific move
 class MockStrategy(BaseStrategy):
-    def __init__(self, next_move=None, priority_move=None):
+    def __init__(self, next_move=None):
         self.next_move = next_move
-        self.priority_move = priority_move
         
-    def get_priority_move(self, agent: 'Agent') -> Optional[Tuple[int, int]]:
-        return self.priority_move
-        
-    def get_next_move(self, agent: 'Agent', env: 'Environment') -> Optional[Tuple[int, int]]:
+    def get_next_move(self, agent: 'Agent', env: 'Environment', targets: Optional[List[Tuple[int, int]]] = None) -> Optional[Tuple[int, int]]:
         return self.next_move
 
 @pytest.fixture
@@ -51,8 +47,8 @@ def mock_env():
 
 def test_sync_maps_symmetric():
     """M6: Verify Agent.sync_maps(a, b) merges knowledge correctly and symmetrically."""
-    a = Agent(agent_id=0, env_size=10)
-    b = Agent(agent_id=1, env_size=10)
+    a = Agent(agent_id=0, env_size=10, battery=500, vision_range=3, comm_range=5)
+    b = Agent(agent_id=1, env_size=10, battery=500, vision_range=3, comm_range=5)
     
     # Give them different knowledge
     a.local_map[1, 1] = CellType.WALL
@@ -76,8 +72,8 @@ def test_sync_maps_symmetric():
 
 def test_scout_collector_handoff():
     """C2: Verify Scout clears known_objects after sync with a Collector."""
-    scout = Agent(agent_id=0, env_size=10, role=AgentRole.SCOUT)
-    collector = Agent(agent_id=1, env_size=10, role=AgentRole.COLLECTOR)
+    scout = Agent(agent_id=0, env_size=10, battery=500, vision_range=3, comm_range=5, role=AgentRole.SCOUT)
+    collector = Agent(agent_id=1, env_size=10, battery=500, vision_range=3, comm_range=5, role=AgentRole.COLLECTOR)
     
     scout.known_objects.add((5, 5))
     
@@ -89,7 +85,7 @@ def test_scout_collector_handoff():
 
 def test_state_enum_usage():
     """M4: Verify Agent uses AgentState enum for its state."""
-    agent = Agent(agent_id=0, env_size=10)
+    agent = Agent(agent_id=0, env_size=10, battery=100, vision_range=3, comm_range=5)
     assert isinstance(agent.state, AgentState)
     assert agent.state == AgentState.EXPLORING
     
@@ -98,7 +94,7 @@ def test_state_enum_usage():
 
 def test_validate_known_objects_prunes_stale(mock_env):
     """M2: Verify stale objects are removed from known_objects."""
-    agent = Agent(agent_id=0, env_size=10)
+    agent = Agent(agent_id=0, env_size=10, battery=100, vision_range=3, comm_range=5)
     agent.known_objects.add((5, 5)) # Active object
     agent.known_objects.add((6, 6)) # Stale/Ghost object
     
@@ -109,7 +105,7 @@ def test_validate_known_objects_prunes_stale(mock_env):
 
 def test_stuck_detection_with_none(mock_env, capsys):
     """C5: Verify that strategy returning None doesn't trigger false 'stuck' message."""
-    agent = Agent(agent_id=0, env_size=10)
+    agent = Agent(agent_id=0, env_size=10, battery=100, vision_range=3, comm_range=5)
     agent.set_strategy(MockStrategy(next_move=None))
     
     agent.decide_and_move(mock_env)
@@ -120,7 +116,7 @@ def test_stuck_detection_with_none(mock_env, capsys):
 def test_pickup_and_deliver_cycle(mock_env):
     """C3 & SRP: Verify the pickup-to-delivery lifecycle."""
     # Place agent on object
-    agent = Agent(agent_id=0, env_size=10, role=AgentRole.COLLECTOR)
+    agent = Agent(agent_id=0, env_size=10, battery=500, vision_range=3, comm_range=5, role=AgentRole.COLLECTOR)
     agent.pos = (5, 5)
     agent.set_strategy(MockStrategy(next_move=None))
     
@@ -141,7 +137,7 @@ def test_pickup_and_deliver_cycle(mock_env):
 
 def test_battery_consumption(mock_env):
     """M7: Verify battery decreases through encapsulation properties."""
-    agent = Agent(agent_id=0, env_size=10, battery=100)
+    agent = Agent(agent_id=0, env_size=10, battery=100, vision_range=3, comm_range=5)
     agent.set_strategy(MockStrategy(next_move=None))
     initial_battery = agent.battery
     

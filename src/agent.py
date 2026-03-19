@@ -4,9 +4,17 @@ from typing import Tuple, List, Set, Dict, Optional, Any, TYPE_CHECKING
 from .enums import AgentRole, CellType, AgentState
 from .utils import get_visible_cells, manhattan_distance
 
+from .roles import ScoutRole, CollectorRole, BaseRole
+
 if TYPE_CHECKING:
     from .environment import Environment
     from .strategies import BaseStrategy
+    from .enums import AgentRole
+
+ROLE_REGISTRY = {
+    AgentRole.SCOUT: ScoutRole,
+    AgentRole.COLLECTOR: CollectorRole,
+}
 
 class Agent:
     def __init__(
@@ -21,6 +29,9 @@ class Agent:
         self.id: int = agent_id
         self.pos: Tuple[int, int] = (0, 0)
         self._role: Optional[AgentRole] = role
+        role_class = ROLE_REGISTRY.get(role, BaseRole)
+        self.role_handler = role_class()
+
         self._state: AgentState = AgentState.EXPLORING 
         self._battery: int = battery
         self.vision_range: int = vision_range
@@ -128,7 +139,8 @@ class Agent:
             self.is_active = False
             return False
 
-        next_pos = self.strategy.get_next_move(self, env)
+        targets = self.role_handler.get_targets(self, env)
+        next_pos = self.strategy.get_next_move(self, env, targets)
 
         # Target management: clear target if already reached
         if self.current_target == self.pos:
