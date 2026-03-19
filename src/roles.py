@@ -19,24 +19,19 @@ class BaseRole:
         """
         from .config import BATTERY_LOW_THRESHOLD
 
-        # 0. Low Battery? Return to warehouse entrance
-        if agent.battery <= BATTERY_LOW_THRESHOLD and agent.state != AgentState.PARKED and not agent.carrying_object:
-            agent.state = AgentState.RETURNING
+        # 0 & 1. Need to return to warehouse? (Low battery OR Carrying object)
+        is_low_battery = agent.battery <= BATTERY_LOW_THRESHOLD and agent.state != AgentState.PARKED
+        
+        if is_low_battery or agent.carrying_object:
             warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
             if warehouse_entrances:
+                agent.state = AgentState.DELIVERING if agent.carrying_object else AgentState.RETURNING
                 return list(warehouse_entrances)
-            return None
-
-        # 1. Carrying an object? Return to warehouse ENTRANCE
-        if agent.carrying_object:
-            agent.state = AgentState.DELIVERING
-            warehouse_entrances = set(zip(*np.where(agent.local_map == CellType.ENTRANCE)))
-            if warehouse_entrances:
-                return list(warehouse_entrances)
-            return None
+            else:
+                agent.state = AgentState.EXPLORING
 
         # 1.5. Inside a warehouse without an object? Head out!
-        if not agent.carrying_object and agent.local_map[agent.pos] in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
+        elif agent.local_map[agent.pos] in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
             if agent.state == AgentState.RETURNING:
                 return None  # Stay inside and wait to be parked
 
@@ -55,7 +50,8 @@ class BaseRole:
                     corridors = set(zip(*np.where(agent.local_map == CellType.CORRIDOR)))
                     if corridors:
                         return list(corridors)
-            return None
+            
+            agent.state = AgentState.EXPLORING
 
         # 2. Base role has no special logic unless overridden, check specific role logic
         targets = self.get_role_specific_targets(agent, env)
@@ -86,6 +82,13 @@ class ScoutRole(BaseRole):
 
 class CollectorRole(BaseRole):
     def get_role_specific_targets(self, agent: 'Agent', env: 'Environment') -> Optional[List[Tuple[int, int]]]:
+        from .config import BATTERY_LOW_THRESHOLD
+
+        # If carrying an object or low battery, fetching is strictly disabled.
+        # This prevents falling back into fetching if the warehouse is unknown and the agent is exploring.
+        if agent.carrying_object or (agent.battery <= BATTERY_LOW_THRESHOLD and agent.state != AgentState.PARKED):
+            return None
+
         # Knows objects? Go to the nearest one
         if agent.known_objects:
             agent.state = AgentState.FETCHING
