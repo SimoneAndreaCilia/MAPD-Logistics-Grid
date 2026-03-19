@@ -9,7 +9,9 @@ MAP_NAME = "B"
 # Number of agents in the swarm
 NUM_AGENTS = 5
 
-# Agent Strategy Mapping
+# Agent Strategy Mapping that you can choose between
+# "Frontier", "WallFollower", "Spiral", "Greedy", "RandomTarget"
+
 AGENT_STRATEGIES = {
     0: "Frontier",
     1: "WallFollower",
@@ -18,7 +20,8 @@ AGENT_STRATEGIES = {
     4: "RandomTarget"
 }
 
-# Agent Role Mapping
+# Agent Role Mapping that you can choose between
+# "Scout", "Collector"
 AGENT_ROLES = {
     0: AgentRole.COLLECTOR,
     1: AgentRole.COLLECTOR,
