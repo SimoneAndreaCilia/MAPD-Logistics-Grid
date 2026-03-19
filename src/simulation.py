@@ -3,6 +3,7 @@ from typing import List, TYPE_CHECKING
 
 from .agent import Agent
 from .utils import SimulationLogger, manhattan_distance, has_line_of_sight
+from .enums import AgentState
 
 if TYPE_CHECKING:
     from .environment import Environment
@@ -120,9 +121,9 @@ class Simulation:
         while not self.is_done:
             self.step()
             
-            # Fallback if no more moves are possible (all inactive or similar)
-            active_agents = any(a.is_active for a in self.agents)
-            if not active_agents:
+            # Fallback if no more moves are possible (all inactive or just relaying)
+            moving_agents = any(a.is_active and a.state != AgentState.RELAYING for a in self.agents)
+            if not moving_agents:
                 self.is_done = True
                 
         self.logger.save_log(log_path)

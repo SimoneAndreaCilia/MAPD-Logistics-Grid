@@ -9,7 +9,9 @@ MAP_NAME = "B"
 # Number of agents in the swarm
 NUM_AGENTS = 5
 
-# Agent Strategy Mapping
+# Agent Strategy Mapping that you can choose between
+# "Frontier", "WallFollower", "Spiral", "Greedy", "RandomTarget"
+
 AGENT_STRATEGIES = {
     0: "Frontier",
     1: "WallFollower",
@@ -18,18 +20,19 @@ AGENT_STRATEGIES = {
     4: "RandomTarget"
 }
 
-# Agent Role Mapping
+# Agent Role Mapping that you can choose between
+# "Scout", "Collector", "Coordinator"
 AGENT_ROLES = {
-    0: AgentRole.COLLECTOR,
+    0: AgentRole.SCOUT,
     1: AgentRole.COLLECTOR,
-    2: AgentRole.COLLECTOR,
+    2: AgentRole.COORDINATOR,
     3: AgentRole.COLLECTOR,
-    4: AgentRole.COLLECTOR
+    4: AgentRole.SCOUT
 }
 
-# Battery capacity per agent (scaled with MAX_TICKS)
-# Formula: Battery = MAX_TICKS / NUM_AGENTS
-BATTERY_CAPACITY = MAX_TICKS // NUM_AGENTS
+# Battery capacity per agent
+BATTERY_CAPACITY = 500
+BATTERY_LOW_THRESHOLD = 100
 
 # Visualization Settings
 GRID_SIZE = 25

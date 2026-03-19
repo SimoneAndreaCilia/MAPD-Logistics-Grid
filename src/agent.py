@@ -4,9 +4,18 @@ from typing import Tuple, List, Set, Dict, Optional, Any, TYPE_CHECKING
 from .enums import AgentRole, CellType, AgentState
 from .utils import get_visible_cells, manhattan_distance
 
+from .roles import ScoutRole, CollectorRole, CoordinatorRole, BaseRole
+
 if TYPE_CHECKING:
     from .environment import Environment
     from .strategies import BaseStrategy
+    from .enums import AgentRole
+
+ROLE_REGISTRY = {
+    AgentRole.SCOUT: ScoutRole,
+    AgentRole.COLLECTOR: CollectorRole,
+    AgentRole.COORDINATOR: CoordinatorRole,
+}
 
 class Agent:
     def __init__(
@@ -21,6 +30,9 @@ class Agent:
         self.id: int = agent_id
         self.pos: Tuple[int, int] = (0, 0)
         self._role: Optional[AgentRole] = role
+        role_class = ROLE_REGISTRY.get(role, BaseRole)
+        self.role_handler = role_class()
+
         self._state: AgentState = AgentState.EXPLORING 
         self._battery: int = battery
         self.vision_range: int = vision_range
@@ -108,11 +120,11 @@ class Agent:
         a.known_objects = shared_objects.copy()
         b.known_objects = shared_objects.copy()
 
-        # Scout → Collector handoff: once objects are shared, the Scout clears its list
+        # Scout → Collector/Coordinator handoff: once objects are shared, the Scout clears its list
         # so it exits RENDEZVOUS and goes back to exploring.
-        if a.role == AgentRole.SCOUT and b.role == AgentRole.COLLECTOR:
+        if a.role == AgentRole.SCOUT and b.role in [AgentRole.COLLECTOR, AgentRole.COORDINATOR]:
             a.known_objects.clear()
-        elif b.role == AgentRole.SCOUT and a.role == AgentRole.COLLECTOR:
+        elif b.role == AgentRole.SCOUT and a.role in [AgentRole.COLLECTOR, AgentRole.COORDINATOR]:
             b.known_objects.clear()
 
         # Update each agent's last-known metadata about the other
@@ -128,7 +140,12 @@ class Agent:
             self.is_active = False
             return False
 
-        next_pos = self.strategy.get_next_move(self, env)
+        targets = self.role_handler.get_targets(self, env)
+        
+        if self.state in [AgentState.RELAYING, AgentState.PARKED]:
+            next_pos = self.pos
+        else:
+            next_pos = self.strategy.get_next_move(self, env, targets)
 
         # Target management: clear target if already reached
         if self.current_target == self.pos:
@@ -137,10 +154,12 @@ class Agent:
         self._move_to(next_pos, env)
         self._try_pickup(env)
         self._try_deliver(env)
+        self._try_park(env)
         self._update_state(env)
         self._consume_energy()
 
-        return True
+        # Ritorna False se l'agente non sta consumando un turno effettivo (come un Coordinator in RELAYING)
+        return self.state != AgentState.RELAYING
 
     # ------------------------------------------------------------------
     # Private helpers — each with a single, well-defined responsibility
@@ -169,7 +188,18 @@ class Agent:
         """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
         if self.carrying_object and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
             self.carrying_object = False
-            self.state = AgentState.EXITING  # Immediately switch state to exit the warehouse
+            from .config import BATTERY_LOW_THRESHOLD
+            if self.battery <= BATTERY_LOW_THRESHOLD:
+                self.state = AgentState.RETURNING
+            else:
+                self.state = AgentState.EXITING  # Immediately switch state to exit the warehouse
+
+    def _try_park(self, env: Environment) -> None:
+        """Parks the agent if its battery is low and it is inside a warehouse."""
+        from .config import BATTERY_LOW_THRESHOLD
+        if self.battery <= BATTERY_LOW_THRESHOLD and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
+            self.is_active = False
+            self.state = AgentState.PARKED
 
     def _update_state(self, env: Environment) -> None:
         """
@@ -184,9 +214,10 @@ class Agent:
 
     def _consume_energy(self) -> None:
         """Decrements battery by 1 and deactivates the agent if it reaches zero."""
-        self._battery -= 1
-        if self._battery <= 0:
-            self.is_active = False
+        if self.state not in [AgentState.PARKED, AgentState.RELAYING]:
+            self._battery -= 1
+            if self._battery <= 0:
+                self.is_active = False
 
     def validate_known_objects(self, env: Environment) -> None:
         """Removes objects from known_objects if they are no longer present in the environment (e.g., collected by another agent)."""
