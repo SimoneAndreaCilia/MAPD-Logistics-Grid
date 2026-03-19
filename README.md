@@ -45,6 +45,24 @@ Each agent starts at the top-left coordinate `[0,0]` and is equipped with:
 
 ---
 
+## Roles & Strategies
+Each agent is assigned a **Role** (defining their mission) and a **Strategy** (defining how they move).
+
+### Agent Roles
+*   **Scout**: Specializes in rapid exploration. It seeks unknown areas and, upon discovering objects, attempts to rendezvous with Collectors or Coordinators to share their findings.
+*   **Collector**: The "workhorse" of the fleet. Its primary goal is to travel to known object locations, pick them up, and deliver them to the nearest warehouse entrance.
+*   **Coordinator**: Acts as a static communication relay. It navigates to a strategically calculated central position and enters a "stasis" mode to facilitate map and objective sharing between mobile agents.
+
+### Movement Strategies
+*   **Frontier**: Standard exploration that targets "frontier" cells (the boundary between explored and unknown space).
+*   **WallFollower**: An exploration pattern that prioritizes staying adjacent to walls, effective for mapping long corridors and room perimeters.
+*   **Spiral**: Moves in an expanding geometric spiral from its starting point to systematically cover the local area.
+*   **Greedy**: Always targets the nearest known objective (like the closest frontier) using the most direct path.
+*   **RandomTarget**: A stochastic strategy that picks exploration targets with a degree of randomness, occasionally actively seeking out other agents to exchange information.
+
+
+---
+
 ## Communication Logic
 Agents share knowledge through an intersection of their communication ranges. When two or more agents are close enough:
 1) They **merge their local maps**, filling in each other's "blind spots."
