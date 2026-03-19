@@ -145,6 +145,65 @@ def test_battery_consumption(mock_env):
     
     assert agent.battery == initial_battery - 1
 
+def test_coordinator_strategic_position():
+    """Verify CoordinatorRole finds central position and enters RELAYING state."""
+    agent = Agent(agent_id=0, env_size=10, battery=100, vision_range=3, comm_range=5, role=AgentRole.COORDINATOR)
+    
+    # Mock environment to provide local_map layout
+    # Center is (5, 5). We'll make only (4, 4) and (8, 8) as Corridors.
+    agent.local_map[:, :] = CellType.WALL
+    agent.local_map[4, 4] = CellType.CORRIDOR
+    agent.local_map[8, 8] = CellType.CORRIDOR
+    
+    # Setup mock env
+    class MockEnv:
+        def has_object(self, *args): return False
+        def remove_object(self, *args): pass
+        def get_cell_type(self, *args): return CellType.CORRIDOR
+        def is_passable(self, *args): return True
+    env = MockEnv()
+    
+    # Create the role handler
+    from src.roles import CoordinatorRole
+    assert isinstance(agent.role_handler, CoordinatorRole)
+    
+    # First decision should target (4,4) as it's closer to center (5,5) than (8,8)
+    # Manhattan distance (4,4) to (5,5) is 2. (8,8) to (5,5) is 6.
+    targets = agent.role_handler.get_targets(agent, env)
+    assert targets == [(4, 4)]
+    
+    # Manually move agent to target
+    agent.pos = (4, 4)
+    # Next decision should trigger RELAYING
+    targets = agent.role_handler.get_targets(agent, env)
+    assert targets == [(4, 4)]
+    assert agent.state == AgentState.RELAYING
+
+def test_coordinator_energy_saving():
+    """Verify Agent doesn't consume battery when RELAYING."""
+    agent = Agent(agent_id=0, env_size=10, battery=100, vision_range=3, comm_range=5, role=AgentRole.COORDINATOR)
+    
+    class MockEnv:
+        def has_object(self, *args): return False
+        def get_cell_type(self, *args): return CellType.CORRIDOR
+        def is_passable(self, *args): return True
+    env = MockEnv()
+    
+    agent.set_strategy(MockStrategy(next_move=(1, 1)))
+    # Match the strategic position of the empty 10x10 grid center
+    agent.pos = (5, 5) 
+    agent.state = AgentState.RELAYING
+    initial_battery = agent.battery
+    
+    agent.decide_and_move(env)
+    
+    # Since it's RELAYING:
+    # 1. Position shouldn't change even if strategy says (1, 1)
+    # 2. Battery shouldn't decrease
+    assert agent.pos == (5, 5)
+    assert agent.battery == initial_battery
+
+
 if __name__ == "__main__":
     # Allow running directly
     pytest.main([__file__])

@@ -21,13 +21,13 @@ AGENT_STRATEGIES = {
 }
 
 # Agent Role Mapping that you can choose between
-# "Scout", "Collector"
+# "Scout", "Collector", "Coordinator"
 AGENT_ROLES = {
-    0: AgentRole.COLLECTOR,
+    0: AgentRole.SCOUT,
     1: AgentRole.COLLECTOR,
-    2: AgentRole.COLLECTOR,
+    2: AgentRole.COORDINATOR,
     3: AgentRole.COLLECTOR,
-    4: AgentRole.COLLECTOR
+    4: AgentRole.SCOUT
 }
 
 # Battery capacity per agent

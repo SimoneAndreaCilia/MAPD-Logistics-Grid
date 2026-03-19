@@ -94,3 +94,33 @@ class CollectorRole(BaseRole):
             agent.state = AgentState.FETCHING
             return list(agent.known_objects)
         return None
+
+
+class CoordinatorRole(BaseRole):
+    def __init__(self):
+        super().__init__()
+        self.strategic_pos = None
+
+    def get_role_specific_targets(self, agent: 'Agent', env: 'Environment') -> Optional[List[Tuple[int, int]]]:
+        # 1. Calculate strategic position
+        if self.strategic_pos is None or agent.local_map[self.strategic_pos] == CellType.WALL:
+            h, w = agent.local_map.shape
+            center = (h // 2, w // 2)
+            
+            # Consider both explored corridors and unknown cells as valid candidates for the center
+            valid_mask = (agent.local_map == CellType.CORRIDOR) | (agent.local_map == CellType.UNKNOWN)
+            candidates = list(zip(*np.where(valid_mask)))
+                
+            if candidates:
+                self.strategic_pos = min(candidates, key=lambda pos: abs(pos[0]-center[0]) + abs(pos[1]-center[1]))
+
+        # 2. Reached position? Stasis mode.
+        if self.strategic_pos:
+            if agent.pos == self.strategic_pos:
+                agent.state = AgentState.RELAYING
+                return [agent.pos]
+            else:
+                agent.state = AgentState.EXPLORING
+                return [self.strategic_pos]
+                
+        return None

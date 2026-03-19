@@ -4,7 +4,7 @@ from typing import Tuple, List, Set, Dict, Optional, Any, TYPE_CHECKING
 from .enums import AgentRole, CellType, AgentState
 from .utils import get_visible_cells, manhattan_distance
 
-from .roles import ScoutRole, CollectorRole, BaseRole
+from .roles import ScoutRole, CollectorRole, CoordinatorRole, BaseRole
 
 if TYPE_CHECKING:
     from .environment import Environment
@@ -14,6 +14,7 @@ if TYPE_CHECKING:
 ROLE_REGISTRY = {
     AgentRole.SCOUT: ScoutRole,
     AgentRole.COLLECTOR: CollectorRole,
+    AgentRole.COORDINATOR: CoordinatorRole,
 }
 
 class Agent:
@@ -140,7 +141,11 @@ class Agent:
             return False
 
         targets = self.role_handler.get_targets(self, env)
-        next_pos = self.strategy.get_next_move(self, env, targets)
+        
+        if self.state in [AgentState.RELAYING, AgentState.PARKED]:
+            next_pos = self.pos
+        else:
+            next_pos = self.strategy.get_next_move(self, env, targets)
 
         # Target management: clear target if already reached
         if self.current_target == self.pos:
@@ -208,9 +213,10 @@ class Agent:
 
     def _consume_energy(self) -> None:
         """Decrements battery by 1 and deactivates the agent if it reaches zero."""
-        self._battery -= 1
-        if self._battery <= 0:
-            self.is_active = False
+        if self.state not in [AgentState.PARKED, AgentState.RELAYING]:
+            self._battery -= 1
+            if self._battery <= 0:
+                self.is_active = False
 
     def validate_known_objects(self, env: Environment) -> None:
         """Removes objects from known_objects if they are no longer present in the environment (e.g., collected by another agent)."""
