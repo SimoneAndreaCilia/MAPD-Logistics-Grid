@@ -96,6 +96,9 @@ class SimulationGUI(tk.Tk):
 
     def set_status(self, text: str, type: str = "info"):
         """Update the status bar with colored feedback."""
+        if not hasattr(self, 'status_label') or not self.status_label.winfo_exists():
+            return
+            
         color = COLOR_FG
         if type == "error": color = COLOR_ERROR
         elif type == "success": color = COLOR_SUCCESS
@@ -129,7 +132,8 @@ class SimulationGUI(tk.Tk):
             import traceback
             traceback.print_exc()
         finally:
-            self.config_panel.btn_start.config(state="normal")
+            if hasattr(self, 'config_panel') and self.config_panel.winfo_exists():
+                self.config_panel.btn_start.config(state="normal")
 
     def _handle_reset(self):
         """Reset the status UI."""
