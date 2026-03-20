@@ -93,7 +93,7 @@ class ConfigurationPanel(tk.Frame):
         tk.Label(header_frame, text="Strategy", width=15, bg=COLOR_BG, fg=COLOR_FG, font=FONT_SMALL).pack(side=tk.LEFT)
 
         self.agent_rows = []
-        self.strategies = ["Frontier", "Spiral", "WallFollower", "Greedy", "RandomTarget"]
+        self.strategies = ["Frontier", "WallFollower", "Spiral", "Greedy", "RandomTarget"]
         self.roles = ["Scout", "Collector", "Coordinator"]
 
         self._update_agent_list()
@@ -148,7 +148,7 @@ class ConfigurationPanel(tk.Frame):
             role_combo.pack(side=tk.LEFT, padx=PADDING_S)
 
             # Strategy Selection
-            strat_var = tk.StringVar(value="Frontier")
+            strat_var = tk.StringVar(value=self.strategies[i % len(self.strategies)])
             strat_combo = ttk.Combobox(row_frame, textvariable=strat_var, values=self.strategies, state="readonly", width=12)
             strat_combo.pack(side=tk.LEFT, padx=PADDING_S)
 
