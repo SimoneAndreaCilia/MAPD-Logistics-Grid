@@ -39,7 +39,8 @@ class ConfigurationPanel(tk.Frame):
         self.map_combo.pack(fill=tk.X, pady=(0, PADDING_M))
 
         # 1. Number of Agents
-        self.num_agents_var = self._create_input_group("Number of Agents (1-100)", "5")
+        self.num_agents_var = self._create_input_group("Number of Agents (1-50)", "5")
+        self.num_agents_var.trace_add("write", lambda *args: self._update_agent_list())
         
         # 2. Grid Dimensions
         grid_frame = tk.Frame(self.container, bg=COLOR_BG_LIGHT)
@@ -62,29 +63,40 @@ class ConfigurationPanel(tk.Frame):
         # 4. Battery Capacity
         self.battery_var = self._create_input_group("Agent Battery Capacity (10-1000)", "500")
 
-        # 5. Agent Roles (Multi-select)
-        tk.Label(self.container, text="Agent Roles", font=FONT_BOLD, bg=COLOR_BG_LIGHT, fg=COLOR_FG).pack(anchor=tk.W, pady=(PADDING_M, 2))
-        self.roles_vars = {
-            "Scout": tk.BooleanVar(value=True),
-            "Collector": tk.BooleanVar(value=True),
-            "Coordinator": tk.BooleanVar(value=True)
-        }
-        roles_frame = tk.Frame(self.container, bg=COLOR_BG_LIGHT)
-        roles_frame.pack(fill=tk.X)
-        for role, var in self.roles_vars.items():
-            tk.Checkbutton(
-                roles_frame, text=role, variable=var, 
-                bg=COLOR_BG_LIGHT, fg=COLOR_FG, selectcolor=COLOR_BG,
-                activebackground=COLOR_BG_LIGHT, activeforeground=COLOR_ACCENT
-            ).pack(side=tk.LEFT, padx=(0, PADDING_M))
+        # 5. Agent Configuration Table
+        tk.Label(self.container, text="Agent Roles & Strategies", font=FONT_BOLD, bg=COLOR_BG_LIGHT, fg=COLOR_FG).pack(anchor=tk.W, pady=(PADDING_M, 2))
+        
+        # Scrollable area for agent configurations
+        self.agent_config_container = tk.Frame(self.container, bg=COLOR_BG, bd=1, relief=tk.SUNKEN)
+        self.agent_config_container.pack(fill=tk.BOTH, expand=True, pady=PADDING_S)
 
-        # 6. Agent Strategies
-        tk.Label(self.container, text="Strategy Algorithm", font=FONT_BOLD, bg=COLOR_BG_LIGHT, fg=COLOR_FG).pack(anchor=tk.W, pady=(PADDING_M, 2))
-        self.strategy_var = tk.StringVar(value="Frontier")
-        strategies = ["Frontier", "WallFollower", "Spiral", "Greedy", "RandomTarget"]
-        # Customizing ttk combo for dark mode is tricky, using a basic dropdown style
-        self.strategy_combo = ttk.Combobox(self.container, textvariable=self.strategy_var, values=strategies, state="readonly")
-        self.strategy_combo.pack(fill=tk.X, pady=2)
+        self.canvas = tk.Canvas(self.agent_config_container, bg=COLOR_BG, highlightthickness=0, height=200)
+        self.scrollbar = ttk.Scrollbar(self.agent_config_container, orient="vertical", command=self.canvas.yview)
+        self.scrollable_frame = tk.Frame(self.canvas, bg=COLOR_BG)
+
+        self.scrollable_frame.bind(
+            "<Configure>",
+            lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all"))
+        )
+
+        self.canvas.create_window((0, 0), window=self.scrollable_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
+
+        # Column Headers
+        header_frame = tk.Frame(self.scrollable_frame, bg=COLOR_BG)
+        header_frame.pack(fill=tk.X, padx=PADDING_S, pady=2)
+        tk.Label(header_frame, text="Agent", width=10, bg=COLOR_BG, fg=COLOR_FG, font=FONT_SMALL).pack(side=tk.LEFT)
+        tk.Label(header_frame, text="Role", width=15, bg=COLOR_BG, fg=COLOR_FG, font=FONT_SMALL).pack(side=tk.LEFT)
+        tk.Label(header_frame, text="Strategy", width=15, bg=COLOR_BG, fg=COLOR_FG, font=FONT_SMALL).pack(side=tk.LEFT)
+
+        self.agent_rows = []
+        self.strategies = ["Frontier", "Spiral", "WallFollower", "Greedy", "RandomTarget"]
+        self.roles = ["Scout", "Collector", "Coordinator"]
+
+        self._update_agent_list()
 
         # Buttons
         button_frame = tk.Frame(self.container, bg=COLOR_BG_LIGHT)
@@ -104,6 +116,49 @@ class ConfigurationPanel(tk.Frame):
         )
         self.btn_start.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(PADDING_S, 0))
 
+    def _update_agent_list(self):
+        """Update the agent configuration rows based on num_agents_var."""
+        try:
+            val = self.num_agents_var.get()
+            if not val: return
+            num_agents = int(val)
+            if num_agents > 50: num_agents = 50 # Limit for UI performance
+            if num_agents < 1: return
+        except ValueError:
+            return
+
+        # Clear existing rows
+        for row in self.agent_rows:
+            for widget in row['widgets']:
+                widget.destroy()
+            row['frame'].destroy()
+        self.agent_rows.clear()
+
+        # Create new rows
+        for i in range(num_agents):
+            row_frame = tk.Frame(self.scrollable_frame, bg=COLOR_BG)
+            row_frame.pack(fill=tk.X, padx=PADDING_S, pady=1)
+
+            label = tk.Label(row_frame, text=f"Agent {i}", width=10, bg=COLOR_BG, fg=COLOR_FG)
+            label.pack(side=tk.LEFT)
+
+            # Role Selection
+            role_var = tk.StringVar(value=self.roles[i % len(self.roles)])
+            role_combo = ttk.Combobox(row_frame, textvariable=role_var, values=self.roles, state="readonly", width=12)
+            role_combo.pack(side=tk.LEFT, padx=PADDING_S)
+
+            # Strategy Selection
+            strat_var = tk.StringVar(value="Frontier")
+            strat_combo = ttk.Combobox(row_frame, textvariable=strat_var, values=self.strategies, state="readonly", width=12)
+            strat_combo.pack(side=tk.LEFT, padx=PADDING_S)
+
+            self.agent_rows.append({
+                'frame': row_frame,
+                'widgets': [label, role_combo, strat_combo],
+                'role_var': role_var,
+                'strat_var': strat_var
+            })
+
     def _create_input_group(self, label_text: str, default_val: str) -> tk.StringVar:
         """Helper to create a label and entry group."""
         tk.Label(self.container, text=label_text, font=FONT_BOLD, bg=COLOR_BG_LIGHT, fg=COLOR_FG).pack(anchor=tk.W, pady=(PADDING_M, 0))
@@ -120,9 +175,7 @@ class ConfigurationPanel(tk.Frame):
         self.grid_h_var.set("25")
         self.duration_var.set("750")
         self.battery_var.set("500")
-        self.strategy_var.set("Frontier")
-        for var in self.roles_vars.values():
-            var.set(True)
+        self._update_agent_list()
         if self.reset_callback:
             self.reset_callback()
 
@@ -143,17 +196,20 @@ class ConfigurationPanel(tk.Frame):
             battery = int(self.battery_var.get())
             if not (10 <= battery <= 1000): raise ValueError("Battery must be 10-1000")
             
-            selected_roles = [role for role, var in self.roles_vars.items() if var.get()]
-            if not selected_roles:
-                raise ValueError("At least one role must be selected")
+            # Collect per-agent configs
+            agent_configs = []
+            for row in self.agent_rows[:num_agents]:
+                agent_configs.append({
+                    "role": row['role_var'].get(),
+                    "strategy": row['strat_var'].get()
+                })
 
             return {
                 "num_agents": num_agents,
                 "grid_size": (grid_w, grid_h),
                 "duration": duration,
                 "battery": battery,
-                "roles": selected_roles,
-                "strategy": self.strategy_var.get(),
+                "agent_configs": agent_configs,
                 "map_name": self.map_var.get()
             }
         except ValueError as e:

@@ -60,9 +60,11 @@ class Agent:
         self.last_known_others: Dict[int, Dict[str, Any]] = {}
         
         self.strategy: Optional[BaseStrategy] = None
+        self.strategy_name: str = "Unknown"
 
-    def set_strategy(self, strategy: BaseStrategy) -> None:
+    def set_strategy(self, strategy: BaseStrategy, name: str = "Unknown") -> None:
         self.strategy = strategy
+        self.strategy_name = name
 
     @property
     def state(self) -> AgentState:

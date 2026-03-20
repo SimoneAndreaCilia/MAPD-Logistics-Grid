@@ -53,24 +53,41 @@ def run_simulation(config: Dict[str, Any], show_vis: bool = True):
     }
     
     agents = []
-    # Role mapping from config (list of strings)
-    role_options = [AgentRole(r) for r in config["roles"]]
-    strategy_class = strategy_factory.get(config["strategy"], FrontierStrategy)
+    agent_configs = config.get("agent_configs")
+    
+    if agent_configs:
+        for i, ac in enumerate(agent_configs):
+            role_enum = AgentRole(ac["role"])
+            strat_class = strategy_factory.get(ac["strategy"], FrontierStrategy)
+            
+            agent = Agent(
+                agent_id=i, 
+                env_size=env.grid_size, 
+                vision_range=VISION_RANGE, 
+                comm_range=COMM_RANGE, 
+                battery=config["battery"], 
+                role=role_enum
+            )
+            agent.set_strategy(strat_class(), name=ac["strategy"])
+            agents.append(agent)
+    else:
+        # Fallback for CLI or incomplete configs
+        role_options = [AgentRole(r) for r in config.get("roles", ["Scout"])]
+        strategy_name = config.get("strategy", "Frontier")
+        strategy_class = strategy_factory.get(strategy_name, FrontierStrategy)
 
-    for i in range(config["num_agents"]):
-        # Cycle through chosen roles
-        role = role_options[i % len(role_options)]
-        
-        agent = Agent(
-            agent_id=i, 
-            env_size=env.grid_size, 
-            vision_range=VISION_RANGE, 
-            comm_range=COMM_RANGE, 
-            battery=config["battery"], 
-            role=role
-        )
-        agent.set_strategy(strategy_class())
-        agents.append(agent)
+        for i in range(config["num_agents"]):
+            role = role_options[i % len(role_options)]
+            agent = Agent(
+                agent_id=i, 
+                env_size=env.grid_size, 
+                vision_range=VISION_RANGE, 
+                comm_range=COMM_RANGE, 
+                battery=config["battery"], 
+                role=role
+            )
+            agent.set_strategy(strategy_class(), name=strategy_name)
+            agents.append(agent)
         
     sim = Simulation(env, agents, max_ticks=config["duration"])
     sim.run(log_path=log_path)

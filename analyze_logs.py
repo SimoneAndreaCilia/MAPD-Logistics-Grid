@@ -14,12 +14,17 @@ def analyze_log(log_path):
     print(f"\n>>> Analyzing Logs: {log_path}")
     print(f"Total ticks: {len(ticks)}")
     
-    agent_carrying_history = {i: [] for i in range(5)}
-    agent_paths = {i: [] for i in range(5)}
-    agent_stuck_count = {i: 0 for i in range(5)}
+    from collections import defaultdict
     
-    current_pickup_tick = {i: None for i in range(5)}
-    deliveries_count = {i: 0 for i in range(5)}
+    agent_carrying_history = defaultdict(list)
+    agent_paths = defaultdict(list)
+    agent_stuck_count = defaultdict(int)
+    
+    current_pickup_tick = defaultdict(lambda: None)
+    deliveries_count = defaultdict(int)
+    
+    # We'll collect agent IDs to iterate over them for summary at the end
+    agent_ids = set()
     
     for tick in ticks:
         tick_num = tick['tick']
@@ -27,16 +32,17 @@ def analyze_log(log_path):
         
         for agent in agents:
             a_id = agent['id']
+            agent_ids.add(a_id)
             pos = agent['pos']
             carrying = agent['carrying_object']
             
-            if (tick_num - 1) % 5 == a_id:
-                agent_paths[a_id].append(pos)
-                
-                if len(agent_paths[a_id]) > 1:
-                    # Check if stuck (same pos as its last turn)
-                    if agent_paths[a_id][-1] == agent_paths[a_id][-2]:
-                        agent_stuck_count[a_id] += 1
+            # Record paths for EVERY tick for better analysis (removed the %5 constraint)
+            agent_paths[a_id].append(pos)
+            
+            if len(agent_paths[a_id]) > 1:
+                # Check if stuck (same pos as its last turn)
+                if agent_paths[a_id][-1] == agent_paths[a_id][-2]:
+                    agent_stuck_count[a_id] += 1
             
             if carrying and current_pickup_tick[a_id] is None:
                 current_pickup_tick[a_id] = tick_num
@@ -51,7 +57,7 @@ def analyze_log(log_path):
 
     print("\n--- Summary ---")
     all_visited = set()
-    for a_id in range(5):
+    for a_id in sorted(agent_ids):
         path = agent_paths[a_id]
         agent_visited = set(tuple(p) for p in path)
         all_visited.update(agent_visited)

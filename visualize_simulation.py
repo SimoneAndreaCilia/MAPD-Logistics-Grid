@@ -287,7 +287,7 @@ class SimulationVisualizer:
                 carrying_str = "Unknown"
                 
             delivered = self.delivery_counts[self.current_frame][self.selected_agent_idx]
-            strategy_name = AGENT_STRATEGIES.get(self.selected_agent_idx, "Unknown")
+            strategy_name = agent.get('strategy', "Unknown")
             
             info_str = (f"Selected: Agent {self.selected_agent_idx}\n"
                         f"Role: {role}\n"
