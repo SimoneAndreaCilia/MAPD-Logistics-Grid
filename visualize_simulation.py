@@ -31,12 +31,17 @@ VIS_CONFIG = {
 }
 
 class SimulationVisualizer:
-    def __init__(self, log_path, env_path):
+    def __init__(self, log_path, env_path, fig=None, ax=None):
         # 1. Load Data
         self._load_data(log_path, env_path)
         
         # 2. Setup Figure and Axes
-        self._setup_figure()
+        if fig is None or ax is None:
+            self._setup_figure()
+        else:
+            self.fig = fig
+            self.ax = ax
+            self._apply_styles()
         
         # 3. Setup Plots
         self._setup_plots()
@@ -53,6 +58,17 @@ class SimulationVisualizer:
         # Initialize legend
         self.ax.legend(handles=self.agent_scatters + [self.object_scatter], 
                        loc='upper right', bbox_to_anchor=(1.1, 1), fontsize='small')
+
+    def _apply_styles(self):
+        """Applies styles to an existing figure/axes."""
+        layout = VIS_CONFIG['layout']
+        # Setup Colors
+        self.cmap = plt.cm.colors.ListedColormap(['white', 'gray', 'royalblue', 'limegreen', 'tomato', 'gold'])
+        self.bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
+        self.norm = plt.cm.colors.BoundaryNorm(self.bounds, self.cmap.N)
+        
+        self.ax.imshow(self.grid, cmap=self.cmap, norm=self.norm)
+        self.ax.set_title("MAPD Logistics - Interactive Swarm Visualizer")
 
     def _load_data(self, log_path, env_path):
         """Loads environment and log data with defensive checks."""
@@ -88,14 +104,7 @@ class SimulationVisualizer:
         layout = VIS_CONFIG['layout']
         self.fig, self.ax = plt.subplots(figsize=layout['fig_size'])
         plt.subplots_adjust(**layout['adjust'])
-        
-        # Setup Colors
-        self.cmap = plt.cm.colors.ListedColormap(['white', 'gray', 'royalblue', 'limegreen', 'tomato', 'gold'])
-        self.bounds = [-0.5, 0.5, 1.5, 2.5, 3.5, 4.5, 5.5]
-        self.norm = plt.cm.colors.BoundaryNorm(self.bounds, self.cmap.N)
-        
-        self.ax.imshow(self.grid, cmap=self.cmap, norm=self.norm)
-        self.ax.set_title("MAPD Logistics - Interactive Swarm Visualizer")
+        self._apply_styles()
 
     def _setup_plots(self):
         colors = VIS_CONFIG['colors']
@@ -363,7 +372,7 @@ class SimulationVisualizer:
                 self.selected_agent_idx = clicked_agent
             self.update_plot(self.current_frame)
 
-    def run_animation(self):
+    def run_animation(self, show=True):
         def animate(i):
             if self.is_playing:
                 if self.current_frame < self.total_frames - 1:
@@ -373,7 +382,7 @@ class SimulationVisualizer:
                     self.is_playing = False
             return []
 
-        ani = animation.FuncAnimation(self.fig, animate, interval=50, blit=False, cache_frame_data=False)
+        self.ani = animation.FuncAnimation(self.fig, animate, interval=50, blit=False, cache_frame_data=False)
         
         # Grid lines customization
         self.ax.set_xticks(np.arange(-0.5, self.grid_size, 1), minor=True)
@@ -381,9 +390,10 @@ class SimulationVisualizer:
         self.ax.grid(which='minor', color='black', linestyle='-', linewidth=0.2)
         self.ax.tick_params(which='minor', bottom=False, left=False) # Hide minor ticks but keep grid
         
-        plt.show()
+        if show:
+            plt.show()
 
-def run_visualizer(log_path=None, env_path=None):
+def run_visualizer(log_path=None, env_path=None, show=True):
     if log_path is None:
         log_path = os.path.join(os.getcwd(), "log_A.json")
     if env_path is None:
@@ -391,9 +401,11 @@ def run_visualizer(log_path=None, env_path=None):
     
     if os.path.exists(log_path) and os.path.exists(env_path):
         vis = SimulationVisualizer(log_path, env_path)
-        vis.run_animation()
+        vis.run_animation(show=show)
+        return vis
     else:
         print(f"Error: Required files not found:\nLog: {log_path}\nEnv: {env_path}")
+        return None
 
 if __name__ == "__main__":
     run_visualizer()
