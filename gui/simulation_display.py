@@ -11,20 +11,20 @@ class SimulationDisplay(tk.Frame):
     """
     
     def __init__(self, parent):
-        super().__init__(parent, bg=COLOR_BG, bd=1, relief=tk.SUNKEN)
+        super().__init__(parent, bg="white", bd=1, relief=tk.SUNKEN)
         self.visualizer = None
         self.canvas_widget = None
         self._setup_ui()
 
     def _setup_ui(self):
         """Set up the visualization container and initial placeholder."""
-        self.container = tk.Frame(self, bg=COLOR_BG)
+        self.container = tk.Frame(self, bg="white")
         self.container.pack(fill=tk.BOTH, expand=True)
         
         self.placeholder_label = tk.Label(
             self.container, 
             text="Simulation Visualization Area\n[Ready for Live Data]", 
-            bg=COLOR_BG, fg=COLOR_BORDER,
+            bg="white", fg=COLOR_BORDER,
             font=FONT_TITLE,
             justify=tk.CENTER
         )
@@ -40,10 +40,10 @@ class SimulationDisplay(tk.Frame):
             self.placeholder_label = None
 
         try:
-            # Create a new figure for the GUI to avoid conflicts with global plt state
+            # Create a new figure for the GUI with white background
             fig, ax = plt.subplots(figsize=(8, 8), dpi=100)
-            fig.patch.set_facecolor(COLOR_BG)
-            ax.set_facecolor(COLOR_BG_LIGHT)
+            fig.patch.set_facecolor("white")
+            ax.set_facecolor("white")
             
             # Initialize the visualizer with our figure/axes
             self.visualizer = SimulationVisualizer(log_path, env_path, fig=fig, ax=ax)
@@ -64,7 +64,7 @@ class SimulationDisplay(tk.Frame):
         """Update the UI with a status message."""
         if not self.placeholder_label:
             self.placeholder_label = tk.Label(
-                self.container, text="", bg=COLOR_BG, fg=COLOR_ACCENT,
+                self.container, text="", bg="white", fg=COLOR_ACCENT,
                 font=FONT_MAIN, justify=tk.CENTER
             )
             self.placeholder_label.place(relx=0.5, rely=0.5, anchor=tk.CENTER)
