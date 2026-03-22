@@ -26,7 +26,8 @@ def a_star_path(
     targets: List[Tuple[int, int]], 
     traversable_vals: List[int], 
     visited_counts: Optional[Dict[Tuple[int, int], int]] = None, 
-    strictly_known: bool = False
+    strictly_known: bool = False,
+    urgency: float = 0.0
 ) -> Optional[List[Tuple[int, int]]]:
     """
     Finds the shortest path to the nearest target using A* algorithm.
@@ -43,19 +44,27 @@ def a_star_path(
     def h(pos):
         return min(abs(pos[0]-t[0]) + abs(pos[1]-t[1]) for t in targets)
 
-    # Weighted costs based on cell type and visited frequency
+    # Weighted costs based on cell type, visited frequency, and urgency.
+    # As urgency approaches 1.0 (time running out), agents become bolder:
+    #   - visit_penalty cap shrinks → they re-traverse old corridors freely
+    #   - unknown cell cost drops   → they explore unexplored zones aggressively
     def get_cost(cell_val, pos):
         base_cost = 1
-        if cell_val == CellType.CORRIDOR:  base_cost = 1   # Known Corridor
-        elif cell_val == CellType.UNKNOWN:  base_cost = 3  # Unknown: prefer known corridors
-        elif cell_val in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]: base_cost = 10  # Warehouse zone: avoid if possible
-        
-        # Add penalty for visits to encourage fresh paths
+        if cell_val == CellType.CORRIDOR:
+            base_cost = 1
+        elif cell_val == CellType.UNKNOWN:
+            # Normal: cost 3. Urgent (urgency=1): cost drops to 1 (same as corridor)
+            base_cost = max(1, 3 - urgency * 2)
+        elif cell_val in [CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT]:
+            base_cost = 10  # Warehouse zone: avoid if possible
+
+        # Add penalty for visits to encourage fresh paths.
+        # Cap shrinks with urgency so agents don't avoid visited corridors when time is short.
         visit_penalty = 0
         if visited_counts is not None and pos in visited_counts:
-            # Quadratic penalty to strongly discourage backtracking
-            visit_penalty = (visited_counts[pos] ** 2) * 0.5
-            
+            penalty_cap = max(0.0, 10 * (1.0 - urgency))  # 10 when calm → 0 when fully urgent
+            visit_penalty = min((visited_counts[pos] ** 2) * 0.5, penalty_cap)
+
         return base_cost + visit_penalty
 
     open_set = []
@@ -98,9 +107,9 @@ class BaseStrategy:
             
         # If exiting from an exit cell, only allow exiting to corridors
         if agent.state == AgentState.EXITING and agent.local_map[agent.pos] == CellType.EXIT:
-             path = a_star_path(agent.local_map, agent.pos, list(targets), [CellType.CORRIDOR, CellType.EXIT], visited_counts=agent.visited_cells)
+             path = a_star_path(agent.local_map, agent.pos, list(targets), [CellType.CORRIDOR, CellType.EXIT], visited_counts=agent.visited_cells, urgency=agent.urgency)
         else:
-             path = a_star_path(agent.local_map, agent.pos, list(targets), [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+             path = a_star_path(agent.local_map, agent.pos, list(targets), [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, urgency=agent.urgency)
              
         if path:
             return path[0]
@@ -214,7 +223,7 @@ class BaseStrategy:
             # Don't path if already close
             if abs(agent.pos[0] - target_pos[0]) + abs(agent.pos[1] - target_pos[1]) > agent.comm_range:
                 # Use strictly_known=True for safer coordination pathfinding
-                path = a_star_path(agent.local_map, agent.pos, [target_pos], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=True)
+                path = a_star_path(agent.local_map, agent.pos, [target_pos], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, strictly_known=True, urgency=agent.urgency)
                 if path: return path[0]
         return None
 
@@ -271,7 +280,7 @@ class BaseStrategy:
                 unknown_counts.append(np.count_nonzero(agent.local_map[r0:r1, c0:c1] == -1))
             
             # If our assigned quadrant is TR/BL/BR/TL and it has few unknowns, switch!
-            if assigned_q_idx < 4 and unknown_counts[assigned_q_idx] < 5:
+            if assigned_q_idx < 4 and unknown_counts[assigned_q_idx] < 20:
                 best_q_idx = np.argmax(unknown_counts)
                 target_q = quadrant_targets[best_q_idx]
             else:
@@ -306,7 +315,7 @@ class BaseStrategy:
             
         # 3. Path to target
         if agent.current_target:
-            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, urgency=agent.urgency)
             if path:
                 return path[0]
             else:
@@ -417,7 +426,7 @@ class GreedyStrategy(BaseStrategy):
             frontier.sort(key=dist)
             agent.current_target = frontier[0]
             
-            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells)
+            path = a_star_path(agent.local_map, agent.pos, [agent.current_target], [CellType.CORRIDOR, CellType.WAREHOUSE, CellType.ENTRANCE, CellType.EXIT, CellType.UNKNOWN], visited_counts=agent.visited_cells, urgency=agent.urgency)
             if path: return path[0]
             
         return self.get_exploration_move(agent)
