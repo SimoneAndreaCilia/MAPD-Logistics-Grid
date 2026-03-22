@@ -69,26 +69,26 @@ class BaseRole:
 
 class ScoutRole(BaseRole):
     def get_role_specific_targets(self, agent: 'Agent', env: 'Environment') -> Optional[List[Tuple[int, int]]]:
-        # Scout knows objects? RENDEZVOUS with nearest Collector to share data
+        # Scout knows objects? RENDEZVOUS with nearest agent to share data
         if agent.known_objects:
-            collectors = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COLLECTOR]
-            if collectors:
-                agent.state = AgentState.RENDEZVOUS
-                collector_positions = [c["pos"] for c in collectors]
-                nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
-                return [nearest_collector_pos]
-            
-            # Push logic: If no collectors, try coordinator
+            # Priority 1: Try Coordinator first (static, reliable relay)
             coordinators = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COORDINATOR]
             if coordinators:
                 coord_positions = [c["pos"] for c in coordinators]
                 nearest_coord = min(coord_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
                 dist_to_coord = abs(nearest_coord[0]-agent.pos[0]) + abs(nearest_coord[1]-agent.pos[1])
                 
-                # Prevenzione stalli (Scout): ignora se gia' nel raggio (vicino)
                 if dist_to_coord > agent.comm_range:
                     agent.state = AgentState.RENDEZVOUS
                     return [nearest_coord]
+            
+            # Priority 2: Fallback to nearest Collector
+            collectors = [info for info in agent.last_known_others.values() if info.get("role") == AgentRole.COLLECTOR]
+            if collectors:
+                agent.state = AgentState.RENDEZVOUS
+                collector_positions = [c["pos"] for c in collectors]
+                nearest_collector_pos = min(collector_positions, key=lambda p: abs(p[0]-agent.pos[0]) + abs(p[1]-agent.pos[1]))
+                return [nearest_collector_pos]
                     
         return None
 

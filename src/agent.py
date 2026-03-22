@@ -2,7 +2,7 @@ from __future__ import annotations
 import numpy as np
 from typing import Tuple, List, Set, Dict, Optional, Any, TYPE_CHECKING
 from .enums import AgentRole, CellType, AgentState
-from .utils import get_visible_cells, manhattan_distance
+from .utils import get_visible_cells, manhattan_distance, RewardSignal
 
 from .roles import ScoutRole, CollectorRole, CoordinatorRole, BaseRole
 
@@ -39,6 +39,7 @@ class Agent:
         self.comm_range: int = comm_range
         
         self.carrying_object: bool = False
+        self.delivered_count: int = 0  # Objects successfully delivered to warehouse
         self.is_active: bool = True
         self.is_connected: bool = False
         self.nearby_agents: List[Tuple[int, int]] = [] 
@@ -62,9 +63,23 @@ class Agent:
         self.strategy: Optional[BaseStrategy] = None
         self.strategy_name: str = "Unknown"
 
+        # Reward signal from simulation (broadcast each tick)
+        self.reward_signal: Optional[RewardSignal] = None
+
     def set_strategy(self, strategy: BaseStrategy, name: str = "Unknown") -> None:
         self.strategy = strategy
         self.strategy_name = name
+
+    def update_reward_signal(self, signal: RewardSignal) -> None:
+        """Receives the broadcast reward signal from the Simulation."""
+        self.reward_signal = signal
+
+    @property
+    def urgency(self) -> float:
+        """Returns the current urgency level. 0.0 if no signal received (retrocompatible)."""
+        if self.reward_signal is None:
+            return 0.0
+        return self.reward_signal.urgency
 
     @property
     def state(self) -> AgentState:
@@ -133,6 +148,13 @@ class Agent:
         a.last_known_others[b.id] = {"pos": b.pos, "role": b.role, "target": b.current_target}
         b.last_known_others[a.id] = {"pos": a.pos, "role": a.role, "target": a.current_target}
 
+        # CLAIM DEDUPLICATION: If a Collector is already FETCHING an object,
+        # other Collectors should avoid targeting the same object
+        if a.role == AgentRole.COLLECTOR and a.state == AgentState.FETCHING and a.current_target:
+            b.known_objects.discard(a.current_target)
+        if b.role == AgentRole.COLLECTOR and b.state == AgentState.FETCHING and b.current_target:
+            a.known_objects.discard(b.current_target)
+
     def decide_and_move(self, env: Environment) -> bool:
         """
         Orchestrates one agent tick: guard → strategy → move → pickup → deliver → state → energy.
@@ -179,17 +201,31 @@ class Agent:
             self.current_target = None
 
     def _try_pickup(self, env: Environment) -> None:
-        """Picks up an object if the agent is standing on one, is idle, and is not a Scout."""
-        if not self.carrying_object and env.has_object(self.pos) and self.role != AgentRole.SCOUT:
-            env.remove_object(self.pos)
-            self.carrying_object = True
-            self.state = AgentState.DELIVERING
-            self.known_objects.discard(self.pos)  # discard is safe even if not present
+        """Picks up an object if the agent is standing on one and is idle.
+        Scouts can pick up opportunistically if no Collector is nearby."""
+        if self.carrying_object or not env.has_object(self.pos):
+            return
+        
+        if self.role == AgentRole.SCOUT:
+            # Scout picks up only if no Collector is within comm_range
+            has_nearby_collector = any(
+                info.get("role") == AgentRole.COLLECTOR 
+                for info in self.last_known_others.values()
+                if isinstance(info, dict) and abs(info["pos"][0]-self.pos[0]) + abs(info["pos"][1]-self.pos[1]) <= self.comm_range + 3
+            )
+            if has_nearby_collector:
+                return  # Let the Collector handle it
+        
+        env.remove_object(self.pos)
+        self.carrying_object = True
+        self.state = AgentState.DELIVERING
+        self.known_objects.discard(self.pos)
 
     def _try_deliver(self, env: Environment) -> None:
         """Drops off the carried object if the agent is inside a warehouse (entrance or internal cell)."""
         if self.carrying_object and env.get_cell_type(self.pos) in [CellType.WAREHOUSE, CellType.ENTRANCE]:
             self.carrying_object = False
+            self.delivered_count += 1
             from .config import BATTERY_LOW_THRESHOLD
             if self.battery <= BATTERY_LOW_THRESHOLD:
                 self.state = AgentState.RETURNING

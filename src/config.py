@@ -25,9 +25,9 @@ AGENT_STRATEGIES = {
 AGENT_ROLES = {
     0: AgentRole.SCOUT,
     1: AgentRole.COLLECTOR,
-    2: AgentRole.COORDINATOR,
+    2: AgentRole.COLLECTOR,
     3: AgentRole.COLLECTOR,
-    4: AgentRole.SCOUT
+    4: AgentRole.COLLECTOR
 }
 
 # Battery capacity per agent

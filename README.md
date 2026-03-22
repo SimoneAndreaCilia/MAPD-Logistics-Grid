@@ -75,6 +75,24 @@ Agents share knowledge through an intersection of their communication ranges. Wh
 *   **Round-Robin Execution**: Agents act sequentially. In a fleet of 5, one full cycle of moves equals 5 global ticks.
 *   **Termination**: The simulation ends when all objects are delivered, all agents run out of battery, or the maximum tick limit is reached.
 
+### Reward Signal & Urgency
+The simulation computes a global **Score** each tick using the formula:
+
+```
+Score = (delivered / total × 1000) - (ticks / max_ticks × 200)
+```
+
+This score rewards delivery ratio (up to 1000 pts) and applies a light time penalty (up to 200 pts). A full delivery at any tick always scores ≥ 800. The simulation broadcasts a **Reward Signal** to all agents containing:
+*   **Time Pressure** (`0.0 → 1.0`): How much of the tick budget has been consumed.
+*   **Collection Ratio** (`0.0 → 1.0`): Fraction of objects already collected.
+*   **Urgency** (`time_pressure × (1 - collection_ratio)`): Combined signal that's high when time is running out AND objects still remain.
+
+Agents use the urgency signal to modulate their heuristics:
+*   **Scouts**: Expand their communication range under high urgency, sharing object locations more eagerly.
+*   **Collectors**: Lower their distance threshold to the Coordinator under high urgency (> 0.5) to seek new tasks faster.
+*   **A\* Pathfinding**: Unknown cell cost decreases with urgency, encouraging risk-taking through fog.
+*   **Exploration**: Backtracking penalty increases with urgency for more linear movement. Frontier scoring weights distance more heavily to prefer closer targets.
+
 ## Execution Modes & GUI
 The simulation can be run in two main modes:
 

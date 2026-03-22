@@ -2,7 +2,7 @@ from __future__ import annotations
 from typing import List, TYPE_CHECKING
 
 from .agent import Agent
-from .utils import SimulationLogger, manhattan_distance, has_line_of_sight
+from .utils import SimulationLogger, manhattan_distance, has_line_of_sight, RewardSignal
 from .enums import AgentState
 
 if TYPE_CHECKING:
@@ -60,10 +60,27 @@ class Simulation:
                 # Record state for this tick
                 objects_left = len(self.env.get_ground_truth_objects())
                 
-                # Quick score calculation (e.g., reward for collected/delivered objects, penalty for average ticks)
-                # The score is not well defined, we calculate a simple one.
-                objects_collected = self.total_objects - objects_left
-                self.score = (objects_collected * 100) - self.current_tick
+                # Score formula: rewards DELIVERY ratio heavily, penalizes time moderately.
+                # objects_delivered = objects actually dropped off at warehouse (not just picked up).
+                # Collection: up to 1000 pts (normalized). Time: up to -500 pts (normalized).
+                objects_delivered = sum(a.delivered_count for a in self.agents)
+                if self.total_objects > 0:
+                    delivery_score = (objects_delivered / self.total_objects) * 1000
+                else:
+                    delivery_score = 1000
+                time_penalty = (self.current_tick / self.max_ticks) * 200 if self.max_ticks > 0 else 0
+                self.score = int(delivery_score - time_penalty)
+                
+                # Broadcast reward signal to all agents
+                signal = RewardSignal(
+                    current_tick=self.current_tick,
+                    max_ticks=self.max_ticks,
+                    objects_collected=objects_delivered,
+                    objects_remaining=self.total_objects - objects_delivered,
+                    current_score=self.score
+                )
+                for agent in self.agents:
+                    agent.update_reward_signal(signal)
                 
                 self.log_state(objects_left)
                 

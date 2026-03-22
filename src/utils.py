@@ -1,5 +1,6 @@
 from __future__ import annotations
 import json
+from dataclasses import dataclass
 from typing import List, Tuple, Dict, Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -65,6 +66,40 @@ def get_visible_cells(env: Environment, pos: Tuple[int, int], vision_range: int)
                         visible.append(target)
                         
     return visible
+
+@dataclass
+class RewardSignal:
+    """Broadcast signal from Simulation → Agents each tick."""
+    current_tick: int
+    max_ticks: int
+    objects_collected: int
+    objects_remaining: int
+    current_score: int
+
+    @property
+    def time_pressure(self) -> float:
+        """0.0 (start) → 1.0 (budget exhausted). Indicates temporal urgency."""
+        if self.max_ticks == 0:
+            return 1.0
+        return self.current_tick / self.max_ticks
+
+    @property
+    def collection_ratio(self) -> float:
+        """0.0 (none collected) → 1.0 (all collected). Measures mission progress."""
+        total = self.objects_collected + self.objects_remaining
+        if total == 0:
+            return 1.0
+        return self.objects_collected / total
+
+    @property
+    def urgency(self) -> float:
+        """
+        Combined signal: high urgency = time running out + objects still pending.
+        Formula: time_pressure × (1 - collection_ratio)
+        Range: 0.0 (no pressure) → 1.0 (max pressure)
+        """
+        return self.time_pressure * (1.0 - self.collection_ratio)
+
 
 class SimulationLogger:
     def __init__(self):
