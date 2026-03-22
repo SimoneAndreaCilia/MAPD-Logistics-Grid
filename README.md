@@ -75,18 +75,45 @@ Agents share knowledge through an intersection of their communication ranges. Wh
 *   **Round-Robin Execution**: Agents act sequentially. In a fleet of 5, one full cycle of moves equals 5 global ticks.
 *   **Termination**: The simulation ends when all objects are delivered, all agents run out of battery, or the maximum tick limit is reached.
 
+## Execution Modes & GUI
+The simulation can be run in two main modes:
+
+1. **Interactive GUI (Default)**: A PyQt5-based interface that streamlines the simulation setup. Users can easily configure key parameters without modifying the code, including Map Selection, Agent Roles & Strategies, and global settings like maximum ticks and battery capacity.
+2. **Headless CLI**: For automated testing or running with predefined configurations from `src/config.py`, bypass the GUI using the `--cli` flag.
+
+## Map Environments
+The physical environments for the simulation are defined in JSON format inside the `data/` directory (e.g., `A.json`, `B.json`). These files specify the grid dimensions, the layout of walls, warehouse entries/exits, and the ground truth coordinates of the objects to be collected.
+
+## Analysis & Visualization
+Upon completion, the simulation generates a log file (e.g., `log_A.json` or `log_B.json`) containing the step-by-step state of every agent and object. This data can be processed through two dedicated tools:
+
+### Interactive Visualizer (`visualize_simulation.py`)
+A comprehensive PyPlot-based visualizer that overlays the logs onto the map grid. It features:
+*   **Playback Controls**: Interactive slider, Play/Pause, and Step forward/backward.
+*   **Agent HUD**: Click on any agent to view its specific Field of View, current Battery, specific Role/Strategy, and carrying status.
+*   **Real-time Metrics**: Displays the current tick, remaining objects, and total score.
+
+### Log Analysis (`analyze_logs.py`)
+A script that parses the execution logs to extract swarm performance metrics:
+*   **Coverage**: Calculates the total "Swarm Cumulative Coverage" percentage.
+*   **Delivery Metrics**: Tracks the number of objects successfully delivered by each agent.
+*   **Efficiency**: Measures the unique cells visited and detects if/when agents get stuck.
+
 ## Getting Started
 ### Prerequisites
 *   Python 3.x
-*   Numpy
+*   Numpy, Matplotlib, PyQt5
 
 ### Installation
 1. Activate your virtual environment: `.\.venv\bin\Activate.ps1`
-2. Install dependencies: `pip install numpy`
+2. Install dependencies: `pip install -r requirements.txt`
 
-### Running the Simulation
-Execute the main script:
+### Running the Project
+Launch the GUI:
 ```bash
 python main.py
 ```
-The simulation will generate a `log_A.json` file containing the step-by-step state for later analysis and visualization.
+Or run directly in CLI mode:
+```bash
+python main.py --cli
+```
