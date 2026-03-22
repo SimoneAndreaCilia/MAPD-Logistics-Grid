@@ -75,6 +75,13 @@ Agents share knowledge through an intersection of their communication ranges. Wh
 *   **Round-Robin Execution**: Agents act sequentially. In a fleet of 5, one full cycle of moves equals 5 global ticks.
 *   **Termination**: The simulation ends when all objects are delivered, all agents run out of battery, or the maximum tick limit is reached.
 
+## Graphical User Interface (GUI)
+A new interactive GUI has been implemented to streamline the simulation setup. Through the visual interface, users can easily configure key parameters without modifying the code, including:
+*   **Map Selection**: Choose the logistics environment.
+*   **Agent Configuration**: Add or remove agents and assign specific **Roles** and **Strategies** to each.
+*   **Global Settings**: Adjust the maximum simulation ticks and individual agent battery capacity.
+*   **Execution**: Launch the simulation directly from the interface.
+
 ## Getting Started
 ### Prerequisites
 *   Python 3.x
